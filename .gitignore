@@ -1,0 +1,4 @@
+# control-plane runtime state (regenerated / written by the agent CLI and dispatch hook)
+.agent/.busy/
+.agent/.dispatch.log
+.agent/.gitkeep

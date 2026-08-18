@@ -16,11 +16,12 @@
 # State:      <repo>/.agent/STATE.md        generated, never hand-edited
 # Identity:   <repo>/.agent/config          or env AGENT_ID
 #
-# Event filename:  T--<ts>--<id>.md          T in {H,O,I,R}
+# Event filename:  T--<ts>--<id>.md          T in {H,O,I,R,C}
 #   H  handoff     a self-snapshot at session end
 #   O  outbound    a message to another repo/agent
 #   I  inbound     a message from another repo/agent
 #   R  resolve     a marker that closes an O or I event
+#   C  claim       a marker that an O or I event is owned (blocks re-dispatch)
 #
 # Usage:
 #   agent init [identity]                    scaffold .agent/ + first STATE
@@ -31,6 +32,7 @@
 #                                            inbound into a co-located repo
 #   agent reply <event-id> [subject] [--target P] [-m BODY]
 #   agent resolve <event-id> [reason] [--target REPO]   (propagates to the mirror)
+#   agent claim <event-id> [reason]    mark an event owned (blocks re-dispatch)
 #   agent inbox                              list open inbound
 #   agent outbox                             list open outbound
 #   agent state                              derive + print STATE.md
@@ -122,14 +124,14 @@ regenerate_state() {
 # frontmatter field helper
 fm() { sed -n "s/^$1:[[:space:]]*//p" "$2" | head -1; }
 
-# open_events TYPE: events of TYPE with no resolve marker targeting them.
+# open_events TYPE: events of TYPE with no resolve OR claim marker targeting them.
 open_events() {
     local type="$1" f marker
     for f in "$LOG_DIR"/"$type"--*.md; do
         [[ -f "$f" ]] || continue
         local id; id="$(fm id "$f")"
         marker=""
-        for r in "$LOG_DIR"/R--*.md; do
+        for r in "$LOG_DIR"/R--*.md "$LOG_DIR"/C--*.md; do
             [[ -f "$r" ]] || continue
             [[ "$(fm re "$r")" == "$id" ]] && { marker=1; break; }
         done
@@ -381,6 +383,28 @@ cmd_resolve() {
     echo "resolved: $target ($reason)"
 }
 
+cmd_claim() {
+    local target="" reason="claimed" pos=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --) shift; pos+=("$@"); break ;;
+            -*) echo "agent: unknown option $1" >&2; exit 3 ;;
+            *) pos+=("$1"); shift ;;
+        esac
+    done
+    target="${pos[0]:?usage: agent claim <event-id> [reason]}"
+    [[ ${#pos[@]} -gt 1 ]] && reason="${pos[*]:1}"
+    local ev; ev="$(find_event "$target")"
+    [[ -n "$ev" ]] || { echo "agent: no event with id $target" >&2; exit 3; }
+    ensure_scaffold
+    local id ts f
+    id="$(new_id)"; ts="$(ts)"
+    f="$(write_event "$LOG_DIR" C "$id" "$ts" "reason: $reason" "re: $target")"
+    regenerate_state
+    commit_events claim "$target" "$f" "$STATE"
+    echo "claimed: $target ($reason)"
+}
+
 cmd_inbox() { echo "## Inbox (open inbound)"; list_events I; }
 cmd_outbox(){ echo "## Outbox (open outbound)"; list_events O; }
 
@@ -399,7 +423,7 @@ cmd_log() {
 }
 
 cmd_check() {
-    local rc=0 types="H O I R" f
+    local rc=0 types="H O I R C" f
     # schema + filename conformity
     for f in "$LOG_DIR"/*.md; do
         [[ -f "$f" ]] || continue
@@ -418,7 +442,7 @@ cmd_check() {
         case "$t" in
             O|I) [[ -n "$(fm to "$f")" && -n "$(fm thread "$f")" ]] \
                     || { echo "check: O/I needs to+thread in $base"; rc=2; } ;;
-            R)   [[ -n "$(fm re "$f")" ]] || { echo "check: R needs re in $base"; rc=2; } ;;
+            R|C) [[ -n "$(fm re "$f")" ]] || { echo "check: $t needs re in $base"; rc=2; } ;;
         esac
     done
     # git state
@@ -442,6 +466,7 @@ case "$cmd" in
     send)     cmd_send "$@" ;;
     reply)    cmd_reply "$@" ;;
     resolve)  cmd_resolve "$@" ;;
+    claim)    cmd_claim "$@" ;;
     inbox)    cmd_inbox ;;
     outbox)   cmd_outbox ;;
     state)    cmd_state ;;

@@ -87,14 +87,21 @@ counterpart, so later operations can follow the link.
 
 ```
 send  →  (mirror)  →  recipient reads inbox  →  reply (re: id, same thread)
-     →  resolve (R re: id)  →  closed, and the resolution PROPAGATES to the mirror
+     →  claim (optional: mark owned)  →  resolve (R re: id)  →  closed, and propagates
 ```
 
-Status is **derived, not stored**: an event is "open" until a resolve marker targeting its
-`id` exists. That keeps the log append-only and the derivation deterministic. A resolve
-**propagates** along the `mirror:` link: when one side closes a mirrored event, an `R` marker
-is also written into the counterpart's repo, closing it there too — so the conversation
-closes as a whole, on both sides, even though each repo's log stays append-only.
+Status is **derived, not stored**: an event is "open" until a **resolve** (`R`) marker
+targeting its `id` exists (or, for dispatch, until it is **claimed** with a `C` marker).
+That keeps the log append-only and the derivation deterministic.
+
+- **`agent claim <id>`** marks an event **owned** — e.g. a dispatched agent claims the
+  inbound it's about to work. A claimed event drops out of `inbox`/`outbox` and is excluded
+  from dispatch, so it is not re-spawned while owned but not yet resolved. Claim is the
+  "owned-but-not-closed" state; resolve is the terminal state.
+- A **resolve propagates** along the `mirror:` link: when one side closes a mirrored event,
+  an `R` marker is also written into the counterpart's repo, closing it there too — so the
+  conversation closes as a whole, on both sides, even though each repo's log stays
+  append-only.
 
 ## The tool — `scripts/agent` (the control-plane enforcement layer)
 
@@ -109,6 +116,7 @@ agent handoff <subject> [-m BODY]    # snapshot current state at session end
 agent send <to> <subject> [--target REPO] [--thread T] [-m BODY]
 agent reply <event-id> [subject] [--target REPO] [-m BODY]
 agent resolve <event-id> [reason] [--target REPO]
+agent claim <event-id> [reason]    # mark owned (excluded from inbox/outbox/dispatch)
 agent inbox                      # list open inbound (the mailbox, as a query)
 agent outbox                     # list open outbound
 agent state                      # derive + print STATE.md

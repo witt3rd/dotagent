@@ -43,9 +43,15 @@ hook's PATH — set it in the hook if it isn't.
 
 1. **The commit touched `.agent/log/`.** Feature commits never dispatch — only event-log
    commits.
-2. **There is *unclaimed inbound* work.** An `I` event with no resolve marker and no claim.
-   Handoffs, outbound, and already-handled threads never spawn.
+2. **There is *unclaimed inbound* work.** An `I` event with no resolve marker and no claim
+   (`C` marker). Handoffs, outbound, and already-handled or already-owned threads never
+   spawn.
 3. **No agent is already working.** The single-flight lock (below).
+
+Before spawning, dispatch **claims** each unclaimed inbound it's about to hand off (`agent
+claim <id>`), so the work is marked owned and won't be re-dispatched if the spawned agent
+dies before resolving. The claim drops the event out of `inbox`/`outbox` and out of future
+dispatch — the "owned but not yet closed" window.
 
 ## Single-flight: one event at a time, through completion
 

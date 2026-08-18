@@ -30,9 +30,9 @@
 
 set -eu
 
-# --- what to spawn (override with AGENT_DISPATCH, or edit here) ------------------------
+# --- what to spawn (env AGENT_DISPATCH, or git config agent.dispatch, or default) -------
 # Default: a headless opencode run with a bounded prompt, in the repo, detached.
-AGENT_DISPATCH="${AGENT_DISPATCH:-opencode run}"
+AGENT_DISPATCH="${AGENT_DISPATCH:-$(git config --get agent.dispatch 2>/dev/null || echo 'opencode run')}"
 # The prompt handed to the fresh agent. It pulls state/inbox, acts, releases the lock.
 # Passed to the spawned command as a SINGLE argument (never eval'd), so shell
 # metacharacters in it are safe.
@@ -90,6 +90,24 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 printf '%s\n' "$$" > "$LOCK/pid"
 printf '%s\n' "$(date +%s)" > "$LOCK/ts"
+
+# --- 3.5 mark the work owned (claim) so a later hook won't re-dispatch it ---------------
+# The busy lock guarantees single-flight now; the claim persists ownership for the spawned
+# agent's lifetime (and survives if it dies unresolved, until it is resolved or the lock
+# TTL reclaims). Best-effort: prefers the repo-local control plane (never an ambient `agent`
+# on PATH). A claim commit re-fires this hook, which exits immediately (the lock is held).
+AGENT_CLI="$ROOT/scripts/agent"; [ -x "$AGENT_CLI" ] || AGENT_CLI="$(command -v agent 2>/dev/null || true)"
+for f in "$LOG_DIR"/I--*.md; do
+    [ -f "$f" ] || continue
+    cid="$(sed -n 's/^id:[[:space:]]*//p' "$f" | head -1)"
+    done=0
+    for r in "$LOG_DIR"/R--*.md "$LOG_DIR"/C--*.md; do
+        [ -f "$r" ] || continue
+        [ "$(sed -n 's/^re:[[:space:]]*//p' "$r" | head -1)" = "$cid" ] && done=1
+    done
+    [ "$done" = 1 ] && continue
+    [ -n "$AGENT_CLI" ] && "$AGENT_CLI" claim "$cid" "dispatched" >/dev/null 2>&1 || true
+done
 
 # --- 4. spawn a fresh agent, detached, so the commit returns immediately --------------
 # setsid detaches from this commit's session so the child survives the parent exit
