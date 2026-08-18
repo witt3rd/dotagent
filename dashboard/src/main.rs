@@ -83,8 +83,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         repos: vec![],
         scan_roots: vec![],
     });
-    config.repos.extend(repos);
-    config.scan_roots.extend(scan_roots);
+    config.repos.extend(repos.clone());
+    config.scan_roots.extend(scan_roots.clone());
+
+    // persist CLI args to config file so they survive between invocations
+    if !repos.is_empty() || !scan_roots.is_empty() {
+        if let Some(parent) = std::path::Path::new(&config_file).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let toml_str = toml::to_string_pretty(&config).unwrap_or_default();
+        let _ = std::fs::write(&config_file, &toml_str);
+    }
 
     // setup terminal
     enable_raw_mode()?;
