@@ -56,6 +56,11 @@ This repo is the extraction of that method into a reusable, open package:
   scale. Instead: append-only atomic events, and a *generated* read-model projection
   (`STATE.md`) that is always derived, never hand-edited — so context-loading stays bounded
   and the log stays authoritative.
+- **Push is optional; the file is the channel.** The baseline is pull — an agent or human
+  opens the repo and runs `state` + `inbox`. Where you run many agents, an optional
+  `post-commit` hook (`integrations/dispatch/`) spawns a fresh agent when a message lands,
+  single-flight through completion. Co-located that's a true push; cross-host it's a
+  catch-up on pull (the ledger is the source of truth either way).
 - **Caretaker, not task bot.** The agent is a steward with stake: it possesses, orients,
   acts, and hands off. Stake is what makes good judgment possible.
 - **Strict ownership, minimal scope.** Scripts stage only their own files, never `git add -A`;
@@ -81,7 +86,7 @@ dotagent/
 │   ├── git/           # worktree discipline + the clean end-state
 │   ├── signalling/    # the event-log handoff + agent-to-agent protocol (the core)
 │   └── skills/        # meta: authoring the skill system itself
-├── integrations/       # wiring for common agents (Claude Code, Codex, opencode, Gemini, Cursor)
+├── integrations/       # wiring for common agents + the dispatch (git-event → fresh agent)
 └── templates/         # drop-in starters (AGENTS.md, STATE.md) for adopting the pattern
 ```
 
@@ -149,4 +154,4 @@ This repo is **dogfooding its own doctrine**: an agent handed this repo cold sho
 to read this charter, load `skills/`, run `agent state` + `agent inbox`, and pick up where
 the last caretaker left off.
 
-Last updated: 2026-08-17.
+Last updated: 2026-08-18.
