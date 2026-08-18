@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('r') => app.refresh(),
                         KeyCode::Up | KeyCode::Char('p') => app.prev(),
                         KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => app.next(),
-                        KeyCode::Right | KeyCode::Char('l') => {
+                        KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
                             app.load_log();
                             app.mode = Mode::Log;
                         }
@@ -138,7 +138,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Esc => app.mode = Mode::Dashboard,
                         KeyCode::Up | KeyCode::Char('p') => app.log_up(),
                         KeyCode::Down | KeyCode::Char('j') => app.log_down(),
-                        KeyCode::Enter | KeyCode::Right => app.mode = Mode::LogDetail,
+                        KeyCode::Enter => app.mode = Mode::LogDetail,
                         KeyCode::Char('q') => break,
                         _ => {}
                     },

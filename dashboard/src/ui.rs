@@ -237,7 +237,15 @@ fn draw_log_list(f: &mut Frame, app: &App, area: Rect) {
 
     let mut state = ListState::default();
     state.select(Some(app.log_selected));
-    f.render_stateful_widget(List::new(items).block(block), area, &mut state);
+    let list = List::new(items)
+        .block(block)
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▸ ");
+    f.render_stateful_widget(list, area, &mut state);
 }
 
 fn draw_log_detail(f: &mut Frame, app: &App) {
@@ -287,7 +295,7 @@ fn draw_log_detail(f: &mut Frame, app: &App) {
 fn draw_keybar(f: &mut Frame, app: &App, area: Rect) {
     let mode_str = match app.mode {
         Mode::Dashboard => "[↑↓] select  [Enter] log  [s] state  [k] kill  [r] rescan  [q] quit",
-        Mode::Log => "[↑↓] select entry  [Enter] view  [Esc] back  [q] quit",
+        Mode::Log => "[↑↓] select  [Enter] view  [Esc] back  [q] quit",
         Mode::LogDetail => "[Esc] back to log  [q] quit",
         Mode::State => "[Esc] back  [q] quit",
         Mode::KillConfirm => "[y] confirm kill  [Esc] cancel",
