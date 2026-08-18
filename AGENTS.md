@@ -81,6 +81,7 @@ dotagent/
 │   ├── git/           # worktree discipline + the clean end-state
 │   ├── signalling/    # the event-log handoff + agent-to-agent protocol (the core)
 │   └── skills/        # meta: authoring the skill system itself
+├── integrations/       # wiring for common agents (Claude Code, Codex, opencode, Gemini, Cursor)
 └── templates/         # drop-in starters (AGENTS.md, STATE.md) for adopting the pattern
 ```
 
@@ -116,7 +117,9 @@ The script always stages only its own files and commits with a conventional
 ### Using this repo
 
 - **Adopt it:** read `skills/signalling/`, then `templates/`, and run `scripts/agent init`
-  in your own repo. That is the "wire it in" on-ramp.
+  in your own repo. That is the "wire it in" on-ramp. To wake *your* agent on the log,
+  follow `integrations/` — the contract is universal (AGENTS.md) and the hooks are batteries
+  you drop into your own setup.
 - **Understand it:** read the skills in this order — `signalling/` (the mechanism), then
   `caretaker/` + `agentsmd/` + `git/` (the discipline), then `skills/` (how the skills
   themselves are built).
