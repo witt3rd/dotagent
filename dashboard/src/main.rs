@@ -120,15 +120,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Char('r') => app.refresh(),
                         KeyCode::Up | KeyCode::Char('p') => app.prev(),
                         KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => app.next(),
-                        KeyCode::Enter | KeyCode::Right => app.mode = Mode::Log,
+                        KeyCode::Right | KeyCode::Char('l') => {
+                            app.load_log();
+                            app.mode = Mode::Log;
+                        }
                         KeyCode::Char('s') => app.mode = Mode::State,
                         KeyCode::Char('k') => {
                             if let Some(repo) = app.selected_repo() {
-                                match &repo.lock {
-                                    crate::repo::LockState::Held { .. } => {
-                                        app.mode = Mode::KillConfirm
-                                    }
-                                    _ => {} // no agent to kill
+                                if matches!(&repo.lock, crate::repo::LockState::Held { .. }) {
+                                    app.mode = Mode::KillConfirm;
                                 }
                             }
                         }
@@ -136,8 +136,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     Mode::Log => match key.code {
                         KeyCode::Esc => app.mode = Mode::Dashboard,
-                        KeyCode::Up | KeyCode::Char('p') => app.scroll_log_up(),
-                        KeyCode::Down | KeyCode::Char('j') => app.scroll_log_down(),
+                        KeyCode::Up | KeyCode::Char('p') => app.log_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.log_down(),
+                        KeyCode::Enter | KeyCode::Right => app.mode = Mode::LogDetail,
+                        KeyCode::Char('q') => break,
+                        _ => {}
+                    },
+                    Mode::LogDetail => match key.code {
+                        KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.mode = Mode::Log,
                         KeyCode::Char('q') => break,
                         _ => {}
                     },
@@ -149,17 +155,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         KeyCode::Esc => app.mode = Mode::Dashboard,
                         KeyCode::Char('y') => {
                             if let Some(repo) = app.selected_repo().cloned() {
-                                match kill::kill_agent(&repo) {
-                                    Ok(msg) => {
-                                        app.refresh();
-                                        // could show a status message
-                                        let _ = msg;
-                                    }
-                                    Err(e) => {
-                                        // could show error
-                                        let _ = e;
-                                    }
-                                }
+                                let _ = kill::kill_agent(&repo);
+                                app.refresh();
                             }
                             app.mode = Mode::Dashboard;
                         }

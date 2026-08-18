@@ -20,12 +20,20 @@ pub fn draw(f: &mut Frame, app: &App) {
     draw_detail(f, app, chunks[1]);
     draw_keybar(f, app, chunks[2]);
 
-    if app.mode == Mode::Log {
-        draw_log_popup(f, app);
-    } else if app.mode == Mode::State {
-        draw_state_popup(f, app);
-    } else if app.mode == Mode::KillConfirm {
-        draw_kill_confirm(f, app);
+    match app.mode {
+        Mode::Log => {
+            let area = centered_rect(90, 85, f.area());
+            f.render_widget(Clear, area);
+            draw_log_list(f, app, area);
+        }
+        Mode::LogDetail => draw_log_detail(f, app),
+        Mode::State => {
+            let area = centered_rect(80, 70, f.area());
+            f.render_widget(Clear, area);
+            draw_state_popup(f, app, area);
+        }
+        Mode::KillConfirm => draw_kill_confirm(f, app),
+        Mode::Dashboard => {}
     }
 }
 
@@ -192,10 +200,95 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(paragraph, area);
 }
 
+fn draw_log_list(f: &mut Frame, app: &App, area: Rect) {
+    let repo = match app.selected_repo() {
+        Some(r) => r,
+        None => return,
+    };
+
+    let items: Vec<ListItem> = app
+        .log_entries
+        .iter()
+        .map(|entry| {
+            let color = match entry.event_type {
+                'H' => Color::Cyan,
+                'O' => Color::Blue,
+                'I' => Color::Green,
+                'R' => Color::Yellow,
+                'C' => Color::Magenta,
+                'S' => Color::DarkGray,
+                _ => Color::White,
+            };
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("{} ", &entry.filename[..entry.filename.len().min(8)]),
+                    Style::default().fg(color),
+                ),
+                Span::raw(&entry.subject),
+            ]);
+            ListItem::new(line)
+        })
+        .collect();
+
+    let block = Block::default()
+        .title(format!(" {} — log ({} events, {} selected) ", repo.identity, app.log_entries.len(), app.log_selected + 1))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let mut state = ListState::default();
+    state.select(Some(app.log_selected));
+    f.render_stateful_widget(List::new(items).block(block), area, &mut state);
+}
+
+fn draw_log_detail(f: &mut Frame, app: &App) {
+    let area = centered_rect(85, 80, f.area());
+    f.render_widget(Clear, area);
+
+    let entry = match app.log_entries.get(app.log_selected) {
+        Some(e) => e,
+        None => return,
+    };
+
+    let mut lines: Vec<Line> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        &entry.filename,
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::raw(""));
+
+    for line in entry.body.lines() {
+        if line.starts_with("---") {
+            lines.push(Line::from(Span::styled(line, Style::default().fg(Color::DarkGray))));
+        } else if line.contains(": ") && !line.starts_with(' ') {
+            if let Some((key, val)) = line.split_once(": ") {
+                lines.push(Line::from(vec![
+                    Span::styled(format!("{}:", key), Style::default().fg(Color::Yellow)),
+                    Span::raw(format!(" {}", val)),
+                ]));
+            } else {
+                lines.push(Line::raw(line));
+            }
+        } else {
+            lines.push(Line::raw(line));
+        }
+    }
+
+    let block = Block::default()
+        .title(format!(" {} — {} ", entry.event_type, entry.filename))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+    f.render_widget(paragraph, area);
+}
+
 fn draw_keybar(f: &mut Frame, app: &App, area: Rect) {
     let mode_str = match app.mode {
         Mode::Dashboard => "[↑↓] select  [Enter] log  [s] state  [k] kill  [r] rescan  [q] quit",
-        Mode::Log => "[↑↓] scroll  [Esc] back  [q] quit",
+        Mode::Log => "[↑↓] select entry  [Enter] view  [Esc] back  [q] quit",
+        Mode::LogDetail => "[Esc] back to log  [q] quit",
         Mode::State => "[Esc] back  [q] quit",
         Mode::KillConfirm => "[y] confirm kill  [Esc] cancel",
     };
@@ -206,82 +299,7 @@ fn draw_keybar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(bar, area);
 }
 
-fn draw_log_popup(f: &mut Frame, app: &App) {
-    let area = centered_rect(80, 70, f.area());
-    f.render_widget(Clear, area);
-
-    let repo = match app.selected_repo() {
-        Some(r) => r,
-        None => return,
-    };
-
-    let log_dir = repo.path.join(".agent/log");
-    let mut lines: Vec<Line> = Vec::new();
-
-    if log_dir.exists() {
-        let mut files: Vec<String> = std::fs::read_dir(&log_dir)
-            .ok()
-            .map(|rd| {
-                rd.filter_map(|e| e.ok())
-                    .map(|e| e.file_name().to_string_lossy().to_string())
-                    .filter(|f| f.ends_with(".md"))
-                    .collect()
-            })
-            .unwrap_or_default();
-        files.sort();
-
-        for f in &files {
-            let prefix = &f[..1.min(f.len())];
-            let color = match prefix {
-                "H" => Color::Cyan,
-                "O" => Color::Blue,
-                "I" => Color::Green,
-                "R" => Color::Yellow,
-                "C" => Color::Magenta,
-                "S" => Color::DarkGray,
-                _ => Color::White,
-            };
-            let content = std::fs::read_to_string(log_dir.join(f))
-                .unwrap_or_default();
-            let subject = content
-                .lines()
-                .find(|l| l.starts_with("subject:"))
-                .map(|l| l.trim_start_matches("subject:").trim().to_string())
-                .unwrap_or_default();
-
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!("{} ", &f[..f.len().min(8)]),
-                    Style::default().fg(color),
-                ),
-                Span::raw(subject),
-            ]));
-        }
-    }
-
-    if lines.is_empty() {
-        lines.push(Line::from(Span::styled(
-            "  (no events)",
-            Style::default().fg(Color::DarkGray),
-        )));
-    }
-
-    let block = Block::default()
-        .title(format!(" {} — log ", repo.identity))
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
-
-    let paragraph = Paragraph::new(lines)
-        .block(block)
-        .scroll((app.log_scroll as u16, 0))
-        .wrap(Wrap { trim: false });
-
-    f.render_widget(paragraph, area);
-}
-
-fn draw_state_popup(f: &mut Frame, app: &App) {
-    let area = centered_rect(80, 70, f.area());
-    f.render_widget(Clear, area);
+fn draw_state_popup(f: &mut Frame, app: &App, area: Rect) {
 
     let repo = match app.selected_repo() {
         Some(r) => r,
