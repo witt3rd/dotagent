@@ -36,7 +36,9 @@ AGENT_DISPATCH="${AGENT_DISPATCH:-$(git config --get agent.dispatch 2>/dev/null 
 # The prompt handed to the fresh agent — the canonical caretaker loop (same as the gh-aw
 # caretaker workflow, for 1:1 parity local/cloud). Passed as a SINGLE argument (never
 # eval'd), so shell metacharacters in it are safe.
-DISPATCH_PROMPT="${DISPATCH_PROMPT:-You are the caretaker of this repo — an active intelligence (AGENTS.md). Inbound mail needs you. 1) Orient: run the agent commands agent inbox then agent state. 2) Claim: agent claim the event you take. 3) Act: triage and do what is actionable, leaving it cleaner than you found it. 4) Record: agent resolve what you close (or agent reply). 5) Hand off: keep agent check clean (exit 0), commit + push. Release the dispatch lock when done.}"
+# IMPORTANT: always say `scripts/agent` (the repo-local control plane), never bare `agent` —
+# an unrelated `agent` on PATH will shadow it (a real failure seen driving a dispatch).
+DISPATCH_PROMPT="${DISPATCH_PROMPT:-You are the caretaker of this repo — an active intelligence (AGENTS.md, repository root). Inbound mail needs you. Use ONLY the repo-local CLI \`scripts/agent\` (never a bare \`agent\` on PATH). 1) Orient: run \`scripts/agent inbox\` then \`scripts/agent state\`. 2) Claim: \`scripts/agent claim <the inbound id>\`. 3) Act: triage and do the actionable work, leaving the repo cleaner than you found it. 4) Record: \`scripts/agent resolve <id> \"<what you did>\"\` (or \`scripts/agent reply\`). 5) Hand off: keep \`scripts/agent check\` clean (exit 0), commit + push. Remove the dispatch lock (\`rm -f .agent/.busy/pid .agent/.busy\`) when done.}"
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 LOG_DIR="$ROOT/.agent/log"
