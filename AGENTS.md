@@ -78,6 +78,7 @@ This repo is the extraction of that method into a reusable, open package:
 dotagent/
 ├── AGENTS.md          # this charter (README.md is a symlink to it)
 ├── LICENSE            # MIT
+├── inhabit.sh         # the on-ramp: give any git repo an active intelligence
 ├── scripts/
 │   └── agent          # the control-plane CLI — copy into any repo
 ├── skills/
@@ -121,10 +122,12 @@ The script always stages only its own files and commits with a conventional
 
 ### Using this repo
 
-- **Adopt it:** read `skills/signalling/`, then `templates/`, and run `scripts/agent init`
-  in your own repo. That is the "wire it in" on-ramp. To wake *your* agent on the log,
-  follow `integrations/` — the contract is universal (AGENTS.md) and the hooks are batteries
-  you drop into your own setup.
+- **Adopt it:** run `./inhabit.sh --repo <path> --identity <name> --agents` — the one
+  action that gives a plain repo an active intelligence (copies the CLI, scaffolds `.agent/`,
+  keeps runtime state out of the tree, and on request wires the wake + launcher + charter).
+  Then `--dispatch --launcher 'oc run'` to push git events to a fresh agent. To wake *your*
+  agent on the log, follow `integrations/` — the contract is universal (AGENTS.md) and the
+  hooks are batteries you drop into your own setup.
 - **Understand it:** read the skills in this order — `signalling/` (the mechanism), then
   `caretaker/` + `agentsmd/` + `git/` (the discipline), then `skills/` (how the skills
   themselves are built).
