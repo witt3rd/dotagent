@@ -13,19 +13,78 @@ use std::io;
 use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // load config
-    let config_path = std::env::var("DOTAGENT_DASH_CONFIG")
-        .unwrap_or_else(|_| {
+    // parse CLI args
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut repos: Vec<std::path::PathBuf> = Vec::new();
+    let mut scan_roots: Vec<std::path::PathBuf> = Vec::new();
+    let mut config_path: Option<String> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--repo" => {
+                i += 1;
+                if let Some(p) = args.get(i) {
+                    repos.push(std::path::PathBuf::from(p));
+                }
+            }
+            "--scan-root" => {
+                i += 1;
+                if let Some(p) = args.get(i) {
+                    scan_roots.push(std::path::PathBuf::from(p));
+                }
+            }
+            "--config" => {
+                i += 1;
+                if let Some(p) = args.get(i) {
+                    config_path = Some(p.clone());
+                }
+            }
+            "-h" | "--help" => {
+                println!("dotagent-dash — fleet dashboard for dotagent-inhabited repos");
+                println!();
+                println!("Usage: dotagent-dash [OPTIONS]");
+                println!();
+                println!("Options:");
+                println!("  --repo PATH         add a repo to monitor (repeatable)");
+                println!("  --scan-root PATH    scan a directory for inhabited repos (repeatable)");
+                println!("  --config PATH       config file (default: ~/.config/dotagent/dashboard.toml)");
+                println!("  -h, --help          show this help");
+                println!();
+                println!("Config file (TOML):");
+                println!("  repos = [\"/path/to/repo\"]");
+                println!("  scan_roots = [\"/path/to/scan\"]");
+                println!();
+                println!("Keybindings (in the TUI):");
+                println!("  ↑/↓/j/p    navigate");
+                println!("  Enter       view log");
+                println!("  s           view state");
+                println!("  k           kill agent");
+                println!("  r           rescan repos");
+                println!("  q           quit");
+                return Ok(());
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    // load config file (CLI repos/scan_roots are additive)
+    let config_file = config_path.unwrap_or_else(|| {
+        std::env::var("DOTAGENT_DASH_CONFIG").unwrap_or_else(|_| {
             dirs_or_default()
                 .join("dashboard.toml")
                 .to_string_lossy()
                 .to_string()
-        });
-    let config_str = std::fs::read_to_string(&config_path).unwrap_or_default();
-    let config: repo::Config = toml::from_str(&config_str).unwrap_or(repo::Config {
+        })
+    });
+    let config_str = std::fs::read_to_string(&config_file).unwrap_or_default();
+    let mut config: repo::Config = toml::from_str(&config_str).unwrap_or(repo::Config {
         repos: vec![],
         scan_roots: vec![],
     });
+    config.repos.extend(repos);
+    config.scan_roots.extend(scan_roots);
 
     // setup terminal
     enable_raw_mode()?;
