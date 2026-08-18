@@ -71,7 +71,8 @@ REPO="${REPO:-$PWD}"
 REPO="$(cd "$REPO" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || echo "$REPO")"
 [ -d "$REPO/.git" ] || { echo "inhabit: $REPO is not a git repo" >&2; exit 2; }
 
-confirm() { # $1 = description; only prompts when interactive and not --yes
+confirm() { # $1 = description; --dry-run enumerates every step; --yes takes them all
+    [ "$DRY" = 1 ] && return 0
     [ "$YES" = 1 ] && return 0
     printf '%s [y/N] ' "$1"; read -r ans
     case "$ans" in y|Y|yes) return 0;; *) return 1;; esac
@@ -99,7 +100,8 @@ fi
 if [ -d "$REPO/.agent/log" ]; then
     echo "  .agent/: already inhabited (keeping)"
 else
-    doit bash "$REPO/scripts/agent" init "$IDENTITY"
+    # Run inside the repo: `agent` resolves its root from the CWD, not the --repo flag.
+    doit bash -c 'cd "$1" && exec bash scripts/agent init "$2"' _ "$REPO" "$IDENTITY"
     echo "  .agent/: scaffolded"
 fi
 
