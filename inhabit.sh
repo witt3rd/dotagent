@@ -14,20 +14,24 @@
 #   3. keeps runtime state out    -> .gitignore (.agent/.busy, .dispatch.log)
 #   4. establishes the charter    -> <repo>/AGENTS.md (only if none exists)
 #   5. establishes the lived exp. -> <repo>/skills/  (core discipline set, merged safely)
-#   6. [--dispatch]   wires the wake  -> .git/hooks/post-commit (git event -> fresh agent)
-#   7. [--launcher]   picks the spawn  -> git config agent.dispatch (e.g. 'oc run')
+#   6. [--dispatch]   wires the local wake  -> .git/hooks/post-commit (event -> fresh agent)
+#   7. [--github]     wires the cloud wake  -> .github/workflows/ (gh-aw engine + caretaker)
+#   8. [--launcher]   picks the local spawn -> git config agent.dispatch (e.g. 'oc run')
 #
 # Inhabiting is full commitment, no half measures: it owns root AGENTS.md and skills/.
 # If you already had either, they're kept — but the pattern is established regardless.
+# The same caretaker loop runs whether woken locally (post-commit) or on GitHub (gh-aw) —
+# the only difference is WHERE. Bring your agent (--launcher locally, engine on GitHub);
+# dotagent provisions the rest.
 #
 # Usage:
-#   inhabit.sh [--repo PATH] [--identity NAME] [--minimal] [--dispatch]
+#   inhabit.sh [--repo PATH] [--identity NAME] [--minimal] [--dispatch] [--github]
 #              [--launcher 'CMD ARGS'] [--yes] [--dry-run]
 #
-#   inhabit.sh --repo ~/src/thing --identity thing --dispatch --launcher 'oc run'
+#   inhabit.sh --repo ~/src/thing --identity thing --dispatch --github --launcher 'oc run'
 #
 # The defaults are the full pattern (1-5); --minimal skips the charter + skills (1-3);
-# the wake (6-7) is the battery you opt into. --dry-run shows what it would do.
+# the wake (6-8) is the battery you opt into. --dry-run shows what it would do.
 
 set -euo pipefail
 
@@ -39,19 +43,21 @@ usage() {
     echo "  --repo PATH        target repo (default: current dir)"
     echo "  --identity NAME    the repo's agent identity (default: repo name)"
     echo "  --minimal          only the CLI + ledger (skip the AGENTS.md charter + skills/)"
-    echo "  --dispatch         wire the post-commit wake (git event -> fresh agent)"
-    echo "  --launcher 'CMD'   spawn command for the wake (e.g. 'oc run', 'oc-work run')"
+    echo "  --dispatch         wire the local wake (post-commit -> fresh agent)"
+    echo "  --github           provision the cloud wake (gh-aw engine + caretaker workflow)"
+    echo "  --launcher 'CMD'   spawn command for the local wake (e.g. 'oc run', 'oc-work run')"
     echo "  --yes / -y         don't prompt; take every enabled action"
     echo "  --dry-run          print what would happen, change nothing"
 }
 
-REPO=""; IDENTITY=""; DISPATCH=0; LAUNCHER=""; MINIMAL=0; YES=0; DRY=0
+REPO=""; IDENTITY=""; DISPATCH=0; GITHUB=0; LAUNCHER=""; MINIMAL=0; YES=0; DRY=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --repo)     REPO="$2"; shift 2 ;;
         --identity) IDENTITY="$2"; shift 2 ;;
         --minimal)  MINIMAL=1; shift ;;
         --dispatch) DISPATCH=1; shift ;;
+        --github)   GITHUB=1; shift ;;
         --launcher) LAUNCHER="$2"; shift 2 ;;
         --yes|-y)   YES=1; shift ;;
         --dry-run)  DRY=1; shift ;;
@@ -112,20 +118,38 @@ else
     echo "  .gitignore: appended control-plane runtime state"
 fi
 
-# --- 4. wake (opt-in) -------------------------------------------------------
+# --- 4. wake — LOCAL (opt-in) -------------------------------------------------
 if [ "$DISPATCH" = 1 ]; then
     HOOK_DIR="$REPO/.agent/hooks"; HOOK="$HOOK_DIR/post-commit"
     if [ -e "$REPO/.git/hooks/post-commit" ]; then
-        echo "  dispatch: .git/hooks/post-commit already exists (leaving it)"
-    elif confirm "wire the post-commit wake (git event -> fresh agent)?"; then
+        echo "  local wake: .git/hooks/post-commit already exists (leaving it)"
+    elif confirm "wire the local wake (post-commit -> fresh agent)?"; then
         doit mkdir -p "$HOOK_DIR"
         doit cp "$DOTAGENT/integrations/dispatch/dispatch.sh" "$HOOK"
         doit chmod +x "$HOOK"
         doit ln -s "$HOOK" "$REPO/.git/hooks/post-commit"
-        echo "  dispatch: wired (.git/hooks/post-commit)"
+        echo "  local wake: wired (.git/hooks/post-commit)"
     else
-        echo "  dispatch: skipped"
+        echo "  local wake: skipped"
     fi
+fi
+
+# --- 4b. wake — CLOUD (opt-in, --github): provision the gh-aw workflows ----------
+# GitHub Agentic Workflows is the same dispatch, hosted: an event is the push, the
+# engine run is the fresh agent. Provision from the batteries so the repo is inhabited
+# for cloud too — "bring your agent and we take care of the rest."
+if [ "$GITHUB" = 1 ]; then
+    GWORK="$REPO/.github/workflows"
+    [ -f "$GWORK/shared/dotagent.md" ] \
+        && echo "  gh-aw engine: already present (keeping)" \
+        || { doit mkdir -p "$GWORK/shared"
+             doit cp "$DOTAGENT/integrations/github-aw/dotagent-engine.md" "$GWORK/shared/dotagent.md"
+             echo "  gh-aw engine: wrote $GWORK/shared/dotagent.md"; }
+    [ -f "$GWORK/caretaker.md" ] \
+        && echo "  gh-aw caretaker workflow: already present (keeping)" \
+        || { doit mkdir -p "$GWORK"
+             doit cp "$DOTAGENT/integrations/github-aw/caretaker-workflow.md" "$GWORK/caretaker.md"
+             echo "  gh-aw caretaker workflow: wrote $GWORK/caretaker.md"; }
 fi
 
 # --- 5. launcher (opt-in) ---------------------------------------------------
@@ -174,6 +198,9 @@ if [ "$MINIMAL" = 0 ]; then
 fi
 if [ "$DISPATCH" = 1 ]; then
     [ -n "$(git -C "$REPO" status --porcelain .agent/hooks 2>/dev/null)" ] && FILES="$FILES .agent/hooks"
+fi
+if [ "$GITHUB" = 1 ]; then
+    [ -n "$(git -C "$REPO" status --porcelain .github 2>/dev/null)" ] && FILES="$FILES .github"
 fi
 if [ -n "$FILES" ]; then
     if confirm "commit the scaffold (leaves the repo clean + recoverable)?"; then

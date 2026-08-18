@@ -19,8 +19,44 @@ hybrid we shipped in `integrations/dispatch/`:
 
 The big win over local: on GitHub the push is **real and cross-host**. GitHub is the shared
 orchestrator — an event on the repo (an issue, a PR, a comment, a schedule) triggers a fresh
-engine run, wherever God that machine lives. There is no "catch-up on pull" here; the
-workflow *is* the wake.
+engine run, wherever that machine lives. There is no "catch-up on pull" here; the workflow
+*is* the wake.
+
+## Parity with local: the same repo, the same loop
+
+dotagent and gh-aw are designed as close to **1:1** as the platforms allow — the only
+difference is **WHERE** the wake runs (your machine vs GitHub). Everything else is the
+same:
+
+- **Same mind.** `AGENTS.md` (charter), `.agent/` (event log), `scripts/agent` (control
+  plane), `skills/` (lived experience) — one definition of the repo, shared by both paths.
+- **Same caretaker loop.** The local `post-commit` dispatch prompt and the gh-aw
+  caretaker workflow body are the SAME 5-step sequence: orient (state + inbox) → claim →
+  act → record (resolve/reply) → hand off (check + commit). Only the mechanics differ:
+  locally you hold the `.agent/.busy` lock and run `git config agent.dispatch`; on GitHub
+  the workflow `concurrency` is the lock and `engine:` is the dispatcher.
+- **Same value:** the activity-to-agent is pushed either way.
+
+## Bring your agent, we take care of the rest
+
+dotagent is agent-agnostic on both sides. You bring the agent; dotagent provisions
+everything around it:
+
+```
+./inhabit.sh --repo ~/src/thing --identity thing \
+  --dispatch --github \
+  --launcher 'oc run'        # the LOCAL agent launcher (your opencode/claude/codex)
+# --github provisions .github/workflows/shared/dotagent.md + caretaker.md from the batteries
+```
+
+- **Local:** `--launcher 'oc run'` picks which agent the `post-commit` wake spawns.
+- **Cloud:** the provisioned caretaker workflow's `engine:` picks which gh-aw engine runs
+  (the opencode engine is the shipped battery; `dotagent-engine.md` is the template for
+  wiring your own agent's engine).
+
+The user never authors a hook, a workflow, a ledger, or a charter from scratch — they bring
+an agent and dotagent establishes the active intelligence, on the ground or in the cloud,
+identically.
 
 ## The two artifacts
 

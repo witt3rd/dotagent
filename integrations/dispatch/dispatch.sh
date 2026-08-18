@@ -33,10 +33,10 @@ set -eu
 # --- what to spawn (env AGENT_DISPATCH, or git config agent.dispatch, or default) -------
 # Default: a headless opencode run with a bounded prompt, in the repo, detached.
 AGENT_DISPATCH="${AGENT_DISPATCH:-$(git config --get agent.dispatch 2>/dev/null || echo 'opencode run')}"
-# The prompt handed to the fresh agent. It pulls state/inbox, acts, releases the lock.
-# Passed to the spawned command as a SINGLE argument (never eval'd), so shell
-# metacharacters in it are safe.
-DISPATCH_PROMPT="${DISPATCH_PROMPT:-Inbound mail needs a caretaker. Run the agent commands (agent inbox then agent state), triage what is actionable, resolve what you close, and release the dispatch lock.}"
+# The prompt handed to the fresh agent — the canonical caretaker loop (same as the gh-aw
+# caretaker workflow, for 1:1 parity local/cloud). Passed as a SINGLE argument (never
+# eval'd), so shell metacharacters in it are safe.
+DISPATCH_PROMPT="${DISPATCH_PROMPT:-You are the caretaker of this repo — an active intelligence (AGENTS.md). Inbound mail needs you. 1) Orient: run the agent commands agent inbox then agent state. 2) Claim: agent claim the event you take. 3) Act: triage and do what is actionable, leaving it cleaner than you found it. 4) Record: agent resolve what you close (or agent reply). 5) Hand off: keep agent check clean (exit 0), commit + push. Release the dispatch lock when done.}"
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 LOG_DIR="$ROOT/.agent/log"
