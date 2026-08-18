@@ -5,19 +5,20 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap};
 use ratatui::Frame;
-use ratatui::text::Text;
 
 pub fn draw(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(8),    // repo list
-            Constraint::Length(1), // keybar
+            Constraint::Percentage(55), // repo list
+            Constraint::Percentage(35), // detail panel
+            Constraint::Length(1),      // keybar
         ])
         .split(f.area());
 
     draw_repo_list(f, app, chunks[0]);
-    draw_keybar(f, app, chunks[1]);
+    draw_detail(f, app, chunks[1]);
+    draw_keybar(f, app, chunks[2]);
 
     if app.mode == Mode::Log {
         draw_log_popup(f, app);
@@ -115,6 +116,80 @@ fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
     let mut state = ListState::default();
     state.select(Some(app.selected));
     f.render_stateful_widget(list, area, &mut state);
+}
+
+fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
+    let repo = match app.selected_repo() {
+        Some(r) => r,
+        None => {
+            let empty = Block::default()
+                .title(" detail ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray));
+            f.render_widget(empty, area);
+            return;
+        }
+    };
+
+    let lock_str = match &repo.lock {
+        LockState::Free => "free".to_string(),
+        LockState::Held { pid, since } => {
+            let age_secs = since.parse::<i64>().unwrap_or(0);
+            let now = chrono::Utc::now().timestamp();
+            let ago = now - age_secs;
+            format!("held (PID {}, {}s)", pid, ago.max(0))
+        }
+        LockState::Stale { pid, since } => {
+            let age_secs = since.parse::<i64>().unwrap_or(0);
+            let now = chrono::Utc::now().timestamp();
+            let ago = now - age_secs;
+            format!("STALE (PID {}, {}s)", pid, ago.max(0))
+        }
+    };
+
+    let lines = vec![
+        Line::from(vec![
+            Span::styled(&repo.identity, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::raw(format!("  {}", repo.path.display())),
+        ]),
+        Line::raw(""),
+        Line::from(vec![
+            Span::raw("Events: "),
+            Span::styled(repo.event_count.to_string(), Style::default().fg(Color::White)),
+            Span::raw(" | In: "),
+            Span::styled(repo.open_inbound.to_string(), if repo.open_inbound > 0 { Style::default().fg(Color::Yellow) } else { Style::default() }),
+            Span::raw(" | Out: "),
+            Span::styled(repo.open_outbound.to_string(), Style::default()),
+            Span::raw(" | Handoffs: "),
+            Span::styled(repo.handoffs.to_string(), Style::default()),
+            Span::raw(" | Chain: "),
+            Span::styled(repo.chain_depth.to_string(), if repo.chain_depth > 3 { Style::default().fg(Color::Red) } else { Style::default() }),
+        ]),
+        Line::from(vec![
+            Span::raw("Lock: "),
+            Span::styled(&lock_str, match &repo.lock {
+                LockState::Free => Style::default(),
+                LockState::Held { .. } => Style::default().fg(Color::Yellow),
+                LockState::Stale { .. } => Style::default().fg(Color::Red),
+            }),
+        ]),
+        Line::raw(""),
+        Line::from(vec![
+            Span::raw("Last handoff: "),
+            match &repo.last_handoff_subject {
+                Some(s) => Span::styled(s.clone(), Style::default().fg(Color::DarkGray)),
+                None => Span::styled("(none)", Style::default().fg(Color::DarkGray)),
+            },
+        ]),
+    ];
+
+    let block = Block::default()
+        .title(format!(" {} — detail ", repo.identity))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray));
+
+    let paragraph = Paragraph::new(lines).block(block);
+    f.render_widget(paragraph, area);
 }
 
 fn draw_keybar(f: &mut Frame, app: &App, area: Rect) {
