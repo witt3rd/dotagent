@@ -88,6 +88,7 @@ dotagent/
 │   ├── signalling/    # the event-log handoff + agent-to-agent protocol (the core)
 │   └── skills/        # meta: authoring the skill system itself
 ├── integrations/       # wiring for common agents + the dispatch (git-event → fresh agent)
+│   └── github-aw/       # GH-AW: GitHub as the native dispatcher (engine def + caretaker workflow)
 └── templates/         # drop-in starters (AGENTS.md, STATE.md) for adopting the pattern
 ```
 
