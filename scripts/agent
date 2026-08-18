@@ -30,7 +30,7 @@
 #                                            send a message; --target mirrors the
 #                                            inbound into a co-located repo
 #   agent reply <event-id> [subject] [--target P] [-m BODY]
-#   agent resolve <event-id> [reason]        close an event
+#   agent resolve <event-id> [reason] [--target REPO]   (propagates to the mirror)
 #   agent inbox                              list open inbound
 #   agent outbox                             list open outbound
 #   agent state                              derive + print STATE.md
@@ -150,7 +150,8 @@ list_events() {
 write_event() {
     local dir="$1" type="$2" id="$3" ts="$4" body="$5" extra="$6"
     mkdir -p "$dir"
-    local file="$dir/${type}--$(date -u +%Y%m%dT%H%M%SZ)-$id.md"
+    local file
+    file="$dir/${type}--$(date -u +%Y%m%dT%H%M%SZ)-$id.md"
     local from; from="$(identity)" || { echo "agent: no identity — run 'agent init' or set AGENT_ID" >&2; exit 3; }
     {
         echo "---"
@@ -168,15 +169,29 @@ write_event() {
 
 # target_repo PATH|NAME -> resolves to a git repo path, or "" (not found).
 target_repo() {
-    local t="$1" cand
+    local t="$1" cand dir base
     [[ -z "$t" || "$t" == "-" ]] && return 0
     if [[ -d "$t/.git" || -d "$t" ]]; then
         cand="$(cd "$t" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || true)"
-        [[ -n "$cand" ]] && { printf '%s' "$cand"; return 0; }
+        [[ -n "$cand" ]] && { printf '%s' "$(cd "$cand" && pwd -P)"; return 0; }
     fi
-    for cand in "${AGENT_REPOS_DIR:-$HOME/src}"/*/; do
-        [[ -d "$cand/.git" ]] || continue
-        [[ "$(basename "${cand%/}")" == "$t" ]] && { printf '%s' "${cand%/}"; return 0; }
+    for dir in "$ROOT/.." "${AGENT_REPOS_DIR:-}" "$HOME/src"; do
+        [[ -d "$dir" ]] || continue
+        base="$(cd "$dir" 2>/dev/null && pwd -P || true)"
+        [[ -n "$base" ]] || continue
+        for cand in "$base"/*/; do
+            [[ -d "$cand/.git" ]] || continue
+            [[ "$(basename "${cand%/}")" == "$t" ]] && { printf '%s' "${cand%/}"; return 0; }
+        done
+    done
+    return 1
+}
+
+# find_event ID -> path to the event file with that id, or "" (not found).
+find_event() {
+    local id="$1" f
+    for f in "$LOG_DIR"/*.md; do
+        [[ "$(fm id "$f")" == "$id" ]] && { printf '%s' "$f"; return 0; }
     done
     return 1
 }
@@ -249,18 +264,27 @@ cmd_send() {
     subj="${pos[1]:?usage: agent send <to> <subject> [--target PATH|NAME] [--thread T]}"
     ensure_scaffold
     [[ -n "$thread" ]] || thread="$(new_id)"
-    local id ts body f tpath trepo
+    local id ts body f tpath tname myname extra
     id="$(new_id)"; ts="$(ts)"; body="$(body)"
-    # my outbound record
-    f="$(write_event "$LOG_DIR" O "$id" "$ts" "$body" "to: $to
-thread: $thread
-subject: $subj")"
-    # mirrored inbound in the target repo, if it is a local checkout
+    myname="$(basename "$ROOT")"
+    # resolve the target first so both halves can carry a mirror: link
+    tpath=""; tname=""
     if tpath="$(target_repo "$target" 2>/dev/null)" && [[ -n "$tpath" ]]; then
-        trepo="$tpath/.agent/log"
-        write_event "$trepo" I "$id" "$ts" "$body" "to: $to
+        tname="$(basename "$tpath")"
+    fi
+    # my outbound record (self-describing: names the counterpart repo)
+    extra="to: $to
 thread: $thread
-subject: $subj" >/dev/null
+subject: $subj"
+    [[ -n "$tname" ]] && extra="$extra
+mirror: $tname"
+    f="$(write_event "$LOG_DIR" O "$id" "$ts" "$body" "$extra")"
+    # mirrored inbound in the target repo
+    if [[ -n "$tpath" ]]; then
+        write_event "$tpath/.agent/log" I "$id" "$ts" "$body" "to: $to
+thread: $thread
+subject: $subj
+mirror: $myname" >/dev/null
         regenerate_state
         ( cd "$tpath" && git add -- .agent >/dev/null && git commit -q -m "agent: in $subj (from $(identity))" ) || true
         echo "mirrored → $tpath"
@@ -284,10 +308,7 @@ cmd_reply() {
         esac
     done
     local target="${pos[0]:?usage: agent reply <event-id> [subject] [--target PATH|NAME]}"
-    local tgt=""
-    for f in "$LOG_DIR"/*.md; do
-        [[ "$(fm id "$f")" == "$target" ]] && { tgt="$f"; break; }
-    done
+    local tgt; tgt="$(find_event "$target")"
     [[ -n "$tgt" ]] || { echo "agent: no event with id $target" >&2; exit 3; }
     local ttype tfrom tto tthread tsubj
     ttype="$(fm type "$tgt")"
@@ -300,18 +321,27 @@ cmd_reply() {
     local type to
     if [[ "$ttype" == "I" ]]; then type=O; to="$tfrom"; else type=I; to="$tto"; fi
     ensure_scaffold
-    local id ts body f tpath
+    local id ts body f tpath tname myname extra otype
     id="$(new_id)"; ts="$(ts)"; body="$(body)"
-    f="$(write_event "$LOG_DIR" "$type" "$id" "$ts" "$body" "to: $to
-thread: $tthread
-subject: $subj
-re: $target")"
+    myname="$(basename "$ROOT")"
+    tpath=""; tname=""
     if tpath="$(target_repo "$target_flag" 2>/dev/null)" && [[ -n "$tpath" ]]; then
-        write_event "$tpath/.agent/log" "$([[ "$type" == I ]] && echo O || echo I)" \
-            "$id" "$ts" "$body" "to: $to
+        tname="$(basename "$tpath")"
+    fi
+    extra="to: $to
 thread: $tthread
 subject: $subj
-re: $target" >/dev/null
+re: $target"
+    [[ -n "$tname" ]] && extra="$extra
+mirror: $tname"
+    f="$(write_event "$LOG_DIR" "$type" "$id" "$ts" "$body" "$extra")"
+    if [[ -n "$tpath" ]]; then
+        [[ "$type" == "I" ]] && otype=O || otype=I
+        write_event "$tpath/.agent/log" "$otype" "$id" "$ts" "$body" "to: $to
+thread: $tthread
+subject: $subj
+re: $target
+mirror: $myname" >/dev/null
         ( cd "$tpath" && git add -- .agent >/dev/null && git commit -q -m "agent: reply $subj (from $(identity))" ) || true
         echo "mirrored → $tpath"
     fi
@@ -321,12 +351,31 @@ re: $target" >/dev/null
 }
 
 cmd_resolve() {
-    local target="${1:?usage: agent resolve <event-id> [reason]}"; shift
-    local reason="${*:-resolved}"
+    local target="" reason="resolved" target_flag="" pos=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --target) target_flag="${2:?--target needs a value}"; shift 2 ;;
+            --) shift; pos+=("$@"); break ;;
+            *) pos+=("$1"); shift ;;
+        esac
+    done
+    target="${pos[0]:?usage: agent resolve <event-id> [reason] [--target REPO]}"
+    [[ ${#pos[@]} -gt 1 ]] && reason="${pos[*]:1}"
     ensure_scaffold
-    local id ts f
+    local id ts f tpath mirror ev
     id="$(new_id)"; ts="$(ts)"
     f="$(write_event "$LOG_DIR" R "$id" "$ts" "reason: $reason" "re: $target")"
+    # propagate: follow the event's mirror link (or an explicit --target)
+    ev="$(find_event "$target")"
+    mirror="$(fm mirror "$ev" 2>/dev/null)"
+    [[ -n "$mirror" ]] || mirror="$target_flag"
+    if tpath="$(target_repo "$mirror" 2>/dev/null)" && [[ -n "$tpath" ]]; then
+        write_event "$tpath/.agent/log" R "$id" "$ts" "reason: $reason" "re: $target" >/dev/null
+        ( cd "$tpath" && git add -- .agent >/dev/null && git commit -q -m "agent: resolve $target ($reason, from $(identity))" ) || true
+        echo "resolution mirrored → $tpath"
+    elif [[ -n "$mirror" ]]; then
+        echo "note: mirror '$mirror' not co-located — resolution local only"
+    fi
     regenerate_state
     commit_events resolve "$reason" "$f" "$STATE"
     echo "resolved: $target ($reason)"

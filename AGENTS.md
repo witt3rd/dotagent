@@ -60,7 +60,8 @@ This repo is the extraction of that method into a reusable, open package:
   acts, and hands off. Stake is what makes good judgment possible.
 - **Strict ownership, minimal scope.** Scripts stage only their own files, never `git add -A`;
   a dirty working tree around the log is left untouched. Each repo owns its view of a
-  message; a mirrored event resolves independently per side.
+  message; mirrored events are self-describing (`mirror:` names the counterpart repo), and a
+  resolution propagates along that link when the counterpart is co-located.
 - **Lived, not static.** Skills capture what you learn the hard way; a lesson not encoded is
   a lesson lost.
 
@@ -101,7 +102,7 @@ agent init [identity]           # scaffold .agent/ + first STATE
 agent handoff <subject> [-m BODY]   # snapshot state at session end
 agent send <to> <subject> [--target REPO] [--thread T] [-m BODY]
 agent reply <event-id> [subject] [--target REPO] [-m BODY]
-agent resolve <event-id> [reason]
+agent resolve <event-id> [reason] [--target REPO]
 agent inbox / agent outbox      # the mailbox, as a query
 agent state                     # derive + print STATE.md
 agent log                       # print the event history

@@ -70,6 +70,7 @@ from: <agent-id>     # the sender's identity
 to: <agent-id>       # O/I — the intended recipient
 thread: <hex>        # O/I — groups a conversation across replies
 subject: <one-line>  # the headline
+mirror: <repo-name>  # O/I — the co-located repo holding the counterpart event
 re: <event-id>       # R — which event this closes; replies set it too
 ---
 <body>
@@ -77,18 +78,23 @@ re: <event-id>       # R — which event this closes; replies set it too
 
 **Mirrored messages.** A message between two co-located repos is two files with the **same
 `id`**: an `O` in the sender's log (its outbox) and an `I` in the recipient's log (its
-inbox). `agent send --target <repo>` writes both. The thread links all replies; the shared
-`id` links the two sides.
+inbox). `agent send --target <repo>` / `agent reply --target <repo>` write both. The
+`thread` links all replies; the shared `id` links the two sides. Each half is
+**self-describing**: its `mirror:` field names the co-located repo that holds the
+counterpart, so later operations can follow the link.
 
 ## The lifecycle
 
 ```
 send  →  (mirror)  →  recipient reads inbox  →  reply (re: id, same thread)
-     →  resolve (R re: id)  →  closed: drops out of every inbox/outbox
+     →  resolve (R re: id)  →  closed, and the resolution PROPAGATES to the mirror
 ```
 
 Status is **derived, not stored**: an event is "open" until a resolve marker targeting its
-`id` exists. That keeps the log append-only and the derivation deterministic.
+`id` exists. That keeps the log append-only and the derivation deterministic. A resolve
+**propagates** along the `mirror:` link: when one side closes a mirrored event, an `R` marker
+is also written into the counterpart's repo, closing it there too — so the conversation
+closes as a whole, on both sides, even though each repo's log stays append-only.
 
 ## The tool — `scripts/agent` (the control-plane enforcement layer)
 
@@ -102,7 +108,7 @@ agent identity [name]            # get/set identity
 agent handoff <subject> [-m BODY]    # snapshot current state at session end
 agent send <to> <subject> [--target REPO] [--thread T] [-m BODY]
 agent reply <event-id> [subject] [--target REPO] [-m BODY]
-agent resolve <event-id> [reason]
+agent resolve <event-id> [reason] [--target REPO]
 agent inbox                      # list open inbound (the mailbox, as a query)
 agent outbox                     # list open outbound
 agent state                      # derive + print STATE.md
@@ -154,9 +160,11 @@ pass `agent check` is a repo whose ledger is untrustworthy.
 - **Never edit events.** The log is append-only; a correction is a new event (or a resolve
   + resend), never an in-place edit. Git still records the mistake if you must — but the
   protocol expects append.
-- **A mirrored message resolves independently per side.** `resolve` closes the event in the
-  repo where you run it; the other side's mirror stays open until it resolves or the thread
-  is closed there. That's by design — each repo owns its view.
+- **Resolution propagates only when the mirror is co-located.** `resolve` follows the
+  event's `mirror:` link (or an explicit `--target`). If that repo isn't reachable, the
+  resolution is local only and the script says so — the record on each side is still what
+  git guarantees, but the remote side won't auto-close until it's reachable or resolved
+  there. Each repo still owns its view; propagation is a convenience on top of that.
 - **Targets must be co-located or out-of-band.** `--target` mirrors into a local checkout;
   for a remote repo, the outbound is recorded in-transit and delivery is whatever the repos
   already use (push/pull, a shared checkout, copy). The *record* is what git guarantees.
