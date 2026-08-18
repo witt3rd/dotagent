@@ -89,6 +89,7 @@ dotagent/
 ├── AGENTS.md          # this charter (README.md is a symlink to it)
 ├── LICENSE            # MIT
 ├── inhabit.sh         # the on-ramp: give any git repo an active intelligence
+├── upgrade.sh         # maintain: bring an inhabited repo to the latest dotagent
 ├── scripts/
 │   └── agent          # the control-plane CLI — copy into any repo
 ├── skills/
