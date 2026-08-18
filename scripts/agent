@@ -13,7 +13,6 @@
 # git host. Works on any plain git repo. Just point an agent at it.
 #
 # Event log:   <repo>/.agent/log/            one file per event
-# State:      <repo>/.agent/STATE.md        generated, never hand-edited
 # Identity:   <repo>/.agent/config          or env AGENT_ID
 #
 # Event filename:  T--<ts>--<id>.md          T in {H,O,I,R,C}
@@ -22,6 +21,7 @@
 #   I  inbound     a message from another repo/agent
 #   R  resolve     a marker that closes an O or I event
 #   C  claim       a marker that an O or I event is owned (blocks re-dispatch)
+#   S  state       a projection snapshot of the repo's current state
 #
 # Usage:
 #   agent init [identity]                    scaffold .agent/ + first STATE
@@ -51,7 +51,6 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 AGENT_DIR="$ROOT/.agent"
 LOG_DIR="$AGENT_DIR/log"
 CONFIG="$AGENT_DIR/config"
-STATE="$AGENT_DIR/STATE.md"
 EDITOR="${EDITOR:-vi}"
 
 new_id()  { od -An -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n' || date +%s; }
@@ -87,7 +86,7 @@ commit_events() {
     git commit -q -m "agent: $verb $msg"
 }
 
-regenerate_state() {
+compute_state() {
     local last_h subj last_h_ts body n_open_i n_open_o
     # most recent handoff
     last_h="$(ls -1 "$LOG_DIR"/H--*.md 2>/dev/null | sort | tail -1 || true)"
@@ -118,7 +117,16 @@ regenerate_state() {
         echo "## Open outbound ($n_open_o)"
         list_events O
         echo
-    } > "$STATE"
+    }
+}
+
+# append_state: write the current projection as an S-- event (append-only).
+# Returns the event file path so the caller can commit it alongside the primary event.
+append_state() {
+    local body id ts
+    id="$(new_id)"; ts="$(ts)"
+    body="$(compute_state)"
+    write_event "$LOG_DIR" S "$id" "$ts" "$body" "subject: state snapshot"
 }
 
 # frontmatter field helper
@@ -207,8 +215,7 @@ cmd_init() {
         printf 'identity: %s\n' "$(basename "$ROOT")" > "$CONFIG"
     fi
     ensure_scaffold
-    regenerate_state
-    git add -- "$AGENT_DIR" >/dev/null 2>&1 || true
+    git add -- "$CONFIG" "$AGENT_DIR/log" "$AGENT_DIR/.gitkeep" >/dev/null 2>&1 || true
     if git diff --cached --quiet; then
         echo "agent: .agent/ already initialized"
     else
@@ -221,8 +228,8 @@ cmd_identity() {
     if [[ $# -gt 0 ]]; then
         mkdir -p "$AGENT_DIR"
         printf 'identity: %s\n' "$1" > "$CONFIG"
-        regenerate_state
-        git add -- "$CONFIG" "$STATE" >/dev/null
+        local sf; sf="$(append_state)"
+        git add -- "$CONFIG" "$sf" >/dev/null
         git commit -q -m "agent: set identity to $1" || true
         echo "identity: $1"
     else
@@ -245,8 +252,8 @@ cmd_handoff() {
     local id ts body f
     id="$(new_id)"; ts="$(ts)"; body="$(body)"
     f="$(write_event "$LOG_DIR" H "$id" "$ts" "$body" "subject: $subj")"
-    regenerate_state
-    commit_events handoff "$subj" "$f" "$STATE"
+    sf="$(append_state)"
+    commit_events handoff "$subj" "$f" "$sf"
     echo "handoff: $subj  ($(basename "$f"))"
 }
 
@@ -287,14 +294,13 @@ mirror: $tname"
 thread: $thread
 subject: $subj
 mirror: $myname" >/dev/null
-        regenerate_state
         ( cd "$tpath" && git add -- .agent >/dev/null && git commit -q -m "agent: in $subj (from $(identity))" ) || true
         echo "mirrored → $tpath"
     else
         echo "note: target '$target' not a local repo — outbound recorded (in transit)"
     fi
-    regenerate_state
-    commit_events send "$subj" "$f" "$STATE"
+    local sf; sf="$(append_state)"
+    commit_events send "$subj" "$f" "$sf"
     echo "sent: $subj → $to  (thread $thread, $(basename "$f"))"
 }
 
@@ -347,8 +353,8 @@ mirror: $myname" >/dev/null
         ( cd "$tpath" && git add -- .agent >/dev/null && git commit -q -m "agent: reply $subj (from $(identity))" ) || true
         echo "mirrored → $tpath"
     fi
-    regenerate_state
-    commit_events reply "$subj" "$f" "$STATE"
+    local sf; sf="$(append_state)"
+    commit_events reply "$subj" "$f" "$sf"
     echo "replied: $subj → $to  ($(basename "$f"))"
 }
 
@@ -378,8 +384,8 @@ cmd_resolve() {
     elif [[ -n "$mirror" ]]; then
         echo "note: mirror '$mirror' not co-located — resolution local only"
     fi
-    regenerate_state
-    commit_events resolve "$reason" "$f" "$STATE"
+    local sf; sf="$(append_state)"
+    commit_events resolve "$reason" "$f" "$sf"
     echo "resolved: $target ($reason)"
 }
 
@@ -400,8 +406,8 @@ cmd_claim() {
     local id ts f
     id="$(new_id)"; ts="$(ts)"
     f="$(write_event "$LOG_DIR" C "$id" "$ts" "reason: $reason" "re: $target")"
-    regenerate_state
-    commit_events claim "$target" "$f" "$STATE"
+    local sf; sf="$(append_state)"
+    commit_events claim "$target" "$f" "$sf"
     echo "claimed: $target ($reason)"
 }
 
@@ -409,8 +415,13 @@ cmd_inbox() { echo "## Inbox (open inbound)"; list_events I; }
 cmd_outbox(){ echo "## Outbox (open outbound)"; list_events O; }
 
 cmd_state() {
-    regenerate_state
-    cat "$STATE"
+    local latest_s
+    latest_s="$(ls -1 "$LOG_DIR"/S--*.md 2>/dev/null | sort | tail -1 || true)"
+    if [[ -n "$latest_s" ]]; then
+        awk '/^---$/{n++; next} n>=2{print}' "$latest_s"
+    else
+        compute_state
+    fi
 }
 
 cmd_log() {
@@ -423,7 +434,7 @@ cmd_log() {
 }
 
 cmd_check() {
-    local rc=0 types="H O I R C" f
+    local rc=0 types="H O I R C S" f
     # schema + filename conformity
     for f in "$LOG_DIR"/*.md; do
         [[ -f "$f" ]] || continue
