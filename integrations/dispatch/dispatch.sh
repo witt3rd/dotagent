@@ -10,9 +10,10 @@
 #
 # Guardrails:
 #   1. Self-dispatch prevention: agent-internal commits (message starts with "agent:")
-#      are skipped — except handoffs, which are deliberate continuation signals.
-#   2. Rate limiting: max MAX_DISPATCHES dispatches per hour (configurable).
-#   3. Bounded epoch: the spawned agent is killed after AGENT_TIMEOUT seconds. It is
+#      are skipped — except handoffs, which are deliberate continuation signals ("chaining").
+#   2. Chaining cap: max MAX_CHAIN_DEPTH handoffs before stopping (prevents infinite chains).
+#   3. Rate limiting: max MAX_DISPATCHES dispatches per hour (configurable).
+#   4. Bounded epoch: the spawned agent is killed after AGENT_TIMEOUT seconds. It is
 #      told about the deadline in the prompt and must self-handoff if it can't finish.
 #
 # Nothing here is required. If this hook is absent, the repo is still an active
@@ -24,6 +25,7 @@ set -eu
 AGENT_DISPATCH="${AGENT_DISPATCH:-$(git config --get agent.dispatch 2>/dev/null || echo 'opencode run')}"
 AGENT_TIMEOUT="${AGENT_TIMEOUT:-300}"          # seconds; 0 = no timeout
 MAX_DISPATCHES="${MAX_DISPATCHES:-5}"           # per hour
+MAX_CHAIN_DEPTH="${MAX_CHAIN_DEPTH:-5}"        # max handoffs before stopping
 LOCK_TTL=86400                                 # reclaim stale locks (seconds)
 
 DISPATCH_PROMPT="${DISPATCH_PROMPT:-You are the caretaker of this repo — an active intelligence (AGENTS.md, repository root). Something happened in the event log — check what is new. You are on a deadline (AGENT_TIMEOUT seconds); if you cannot finish in time, run scripts/agent handoff with state and release the lock. Use ONLY the repo-local CLI scripts/agent (never a bare agent on PATH). 1) Orient: run scripts/agent inbox then scripts/agent state. 2) Act on what is actionable: new inbound -> triage and do the work; a resolution propagating back -> acknowledge; a handoff -> review and resume. 3) Claim events you take (scripts/agent claim id). 4) Record: scripts/agent resolve id reason or scripts/agent reply. 5) Hand off if needed: scripts/agent handoff subject. Keep scripts/agent check clean (exit 0), commit + push. Remove the dispatch lock (rm -rf .agent/.busy) when done.}"
@@ -51,7 +53,15 @@ case "$msg" in
     "agent:"*)          exit 0 ;;    # other agent commit — don't re-dispatch
 esac
 
-# --- 3. rate limiting: max N dispatches per hour --------------------------------
+# --- 3. chaining guard: max handoff depth ---------------------------------------
+# A chain is dispatch -> agent handoffs -> dispatch -> agent handoffs -> ...
+# Each H event is a chain link. Cap it to prevent infinite continuation loops.
+h_count="$(ls -1 "$LOG_DIR"/H--*.md 2>/dev/null | wc -l)"
+if [ "${h_count:-0}" -ge "$MAX_CHAIN_DEPTH" ]; then
+    exit 0    # chain too long, stop
+fi
+
+# --- 4. rate limiting: max N dispatches per hour --------------------------------
 now_hour="$(date +%Y%m%d%H)"
 if [ -f "$COUNT_FILE" ]; then
     last_hour="$(sed -n '1p' "$COUNT_FILE")"
@@ -68,7 +78,7 @@ else
     printf '%s\n1\n' "$now_hour" > "$COUNT_FILE"
 fi
 
-# --- 4. single-flight busy lock (atomic mkdir), self-healing -------------------
+# --- 5. single-flight busy lock (atomic mkdir), self-healing -------------------
 if [ -d "$LOCK" ]; then
     lock_pid="$(cat "$LOCK/pid" 2>/dev/null || echo 0)"
     lock_ts="$(cat "$LOCK/ts" 2>/dev/null || echo 0)"
@@ -88,7 +98,7 @@ fi
 printf '%s\n' "$$" > "$LOCK/pid"
 printf '%s\n' "$(date +%s)" > "$LOCK/ts"
 
-# --- 5. spawn a fresh agent, detached, bounded by timeout ----------------------
+# --- 6. spawn a fresh agent, detached, bounded by timeout ----------------------
 # setsid detaches from this commit's session so the child survives the parent exit.
 # timeout kills the agent if it exceeds AGENT_TIMEOUT. The prompt tells the agent
 # about the deadline so it can self-handoff if needed.
