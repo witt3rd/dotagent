@@ -122,10 +122,10 @@ The script always stages only its own files and commits with a conventional
 
 ### Using this repo
 
-- **Adopt it:** run `./inhabit.sh --repo <path> --identity <name> --agents` — the one
-  action that gives a plain repo an active intelligence (copies the CLI, scaffolds `.agent/`,
-  keeps runtime state out of the tree, and on request wires the wake + launcher + charter).
-  Then `--dispatch --launcher 'oc run'` to push git events to a fresh agent. To wake *your*
+- **Adopt it:** run `./inhabit.sh --repo <path> --identity <name>` — the one action that
+  gives a plain repo an active intelligence (copies the CLI, scaffolds `.agent/`, keeps
+  runtime state out of the tree, and owns root `AGENTS.md` + `skills/`). Add
+  `--dispatch --launcher 'oc run'` to push git events to a fresh agent. To wake *your*
   agent on the log, follow `integrations/` — the contract is universal (AGENTS.md) and the
   hooks are batteries you drop into your own setup.
 - **Understand it:** read the skills in this order — `signalling/` (the mechanism), then
