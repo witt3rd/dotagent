@@ -27,17 +27,32 @@ git config core.hooksPath .githooks
 ln -s "$PWD/integrations/dispatch/dispatch.sh" .githooks/post-commit
 ```
 
-Configure the spawn command via env in the hook (or `export` before committing):
+Configure the spawn command via `git config agent.dispatch` (per repo), `AGENT_DISPATCH`
+env, or the default. The launcher is whatever runs a headless agent in your setup:
 
 ```bash
-AGENT_DISPATCH='opencode run'        # what to spawn; defaults to `opencode run`
+# per-repo launcher (git config wins over env/default)
+git config agent.dispatch 'oc run'        # e.g. personal-repo opencode launcher
+git config agent.dispatch 'oc-work run'   # e.g. work-repo opencode launcher
+git config agent.dispatch 'opencode run'  # the default
+
+# or per-invocation env
+AGENT_DISPATCH='oc run' git commit -m '...'
+```
+
+This is how you support multiple agent launchers (e.g. one per repo class): each repo sets
+its own `agent.dispatch` to the launcher appropriate to it, and the hook honors it. The
+launcher must accept a single prompt argument and run headless (the spawned command is
+word-split, passed the prompt as one argument).
+
+```bash
 DISPATCH_PROMPT='...'                # the bounded prompt for the fresh agent
 AGENT_DISPATCH_LOG=/var/log/agent-dispatch.log   # where the spawned agent's output goes
 ```
 
 Defaults: spawn `opencode run` with a caretaker prompt that tells it to pull `agent
-inbox`/`agent state`, act, resolve, and release the lock. `opencode run` must be on the
-hook's PATH — set it in the hook if it isn't.
+inbox`/`agent state`, act, resolve, and release the lock. `opencode` must be on the hook's
+PATH — set it in the hook if it isn't.
 
 ## How it decides to spawn (three filters)
 
