@@ -173,6 +173,11 @@ pass `agent check` is a repo whose ledger is untrustworthy.
 - **`STATE.md` is a projection, not a source of truth.** If it looks stale or wrong, don't
   edit it — `agent state` regenerates it from the log. It's a cache for cheap context-loading,
   the log is the truth.
+- **Prefer the repo-local `scripts/agent`.** Never resolve the `agent` command from PATH first
+  — an unrelated `agent` binary may shadow it (a real footgun found on a machine with
+  `/usr/local/bin/agent`). The control plane is copied into the repo precisely so it wins:
+  `A="scripts/agent"; [ -x "$A" ] || A="$(command -v agent ...)"`. This applies to hooks and
+  integrations as much as to interactive use.
 
 ## Sibling skills
 
