@@ -177,23 +177,14 @@ write_event() {
     printf '%s' "$file"
 }
 
-# target_repo PATH|NAME -> resolves to a git repo path, or "" (not found).
+# target_repo PATH -> resolves to a git repo path, or "" (not found).
 target_repo() {
-    local t="$1" cand dir base
+    local t="$1"
     [[ -z "$t" || "$t" == "-" ]] && return 0
-    if [[ -d "$t/.git" || -d "$t" ]]; then
-        cand="$(cd "$t" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || true)"
-        [[ -n "$cand" ]] && { printf '%s' "$(cd "$cand" && pwd -P)"; return 0; }
-    fi
-    for dir in "$ROOT/.." "${AGENT_REPOS_DIR:-}" "$HOME/src"; do
-        [[ -d "$dir" ]] || continue
-        base="$(cd "$dir" 2>/dev/null && pwd -P || true)"
-        [[ -n "$base" ]] || continue
-        for cand in "$base"/*/; do
-            [[ -d "$cand/.git" ]] || continue
-            [[ "$(basename "${cand%/}")" == "$t" ]] && { printf '%s' "${cand%/}"; return 0; }
-        done
-    done
+    # if it's an existing dir, resolve it directly
+    local cand
+    cand="$(cd "$t" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || true)"
+    [[ -n "$cand" ]] && { printf '%s' "$(cd "$cand" && pwd -P)"; return 0; }
     return 1
 }
 
