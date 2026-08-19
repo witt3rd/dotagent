@@ -3,7 +3,7 @@ use crate::repo::{LockState, Status};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Cell, List, ListItem, ListState, Paragraph, Row, Table, Wrap};
 use ratatui::Frame;
 
 pub fn draw(f: &mut Frame, app: &App) {
@@ -38,92 +38,98 @@ pub fn draw(f: &mut Frame, app: &App) {
 }
 
 fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
-    let header = Line::from(vec![
-        Span::styled("dotagent dashboard", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-        Span::raw("  "),
-        Span::styled(
-            format!("{} repos  [r]escan  [q]uit", app.repos.len()),
-            Style::default().fg(Color::DarkGray),
-        ),
+    let header = Row::new(vec![
+        Cell::from("Repo").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Status").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Lock").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Events").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("In").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Out").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Handoffs").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Chain").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Last").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
     ]);
 
-    let items: Vec<ListItem> = app
+    let rows: Vec<Row> = app
         .repos
         .iter()
-        .enumerate()
-        .map(|(i, repo)| {
-            let status_str = match &repo.status {
-                Status::Active => Span::styled("active", Style::default().fg(Color::Green)),
-                Status::Idle => Span::styled("idle", Style::default().fg(Color::DarkGray)),
-                Status::Stale => Span::styled("stale", Style::default().fg(Color::Yellow)),
-                Status::Error => Span::styled("error", Style::default().fg(Color::Red)),
+        .map(|repo| {
+            let status_cell = match &repo.status {
+                Status::Active => Cell::from("active").style(Style::default().fg(Color::Green)),
+                Status::Idle => Cell::from("idle").style(Style::default().fg(Color::DarkGray)),
+                Status::Stale => Cell::from("stale").style(Style::default().fg(Color::Yellow)),
+                Status::Error => Cell::from("error").style(Style::default().fg(Color::Red)),
             };
 
-            let lock_str = match &repo.lock {
-                LockState::Free => Span::raw("free"),
-                LockState::Held { pid, .. } => Span::styled(
-                    format!("held ({})", pid),
-                    Style::default().fg(Color::Yellow),
-                ),
-                LockState::Stale { pid, .. } => Span::styled(
-                    format!("STALE ({})", pid),
-                    Style::default().fg(Color::Red),
-                ),
+            let lock_cell = match &repo.lock {
+                LockState::Free => Cell::from("free"),
+                LockState::Held { pid, .. } => Cell::from(format!("held ({})", pid))
+                    .style(Style::default().fg(Color::Yellow)),
+                LockState::Stale { pid, .. } => Cell::from(format!("STALE ({})", pid))
+                    .style(Style::default().fg(Color::Red)),
             };
 
-            let last_str = match &repo.last_event {
+            let last_cell = match &repo.last_event {
                 Some(ts) => {
                     let age = chrono::Utc::now().signed_duration_since(*ts);
                     if age.num_seconds() < 60 {
-                        Span::styled("just now", Style::default().fg(Color::Green))
+                        Cell::from("just now").style(Style::default().fg(Color::Green))
                     } else if age.num_minutes() < 60 {
-                        Span::raw(format!("{}m ago", age.num_minutes()))
+                        Cell::from(format!("{}m ago", age.num_minutes()))
                     } else if age.num_hours() < 24 {
-                        Span::raw(format!("{}h ago", age.num_hours()))
+                        Cell::from(format!("{}h ago", age.num_hours()))
                     } else {
-                        Span::styled(
-                            format!("{}d ago", age.num_days()),
-                            Style::default().fg(Color::Yellow),
-                        )
+                        Cell::from(format!("{}d ago", age.num_days()))
+                            .style(Style::default().fg(Color::Yellow))
                     }
                 }
-                None => Span::styled("never", Style::default().fg(Color::DarkGray)),
+                None => Cell::from("never").style(Style::default().fg(Color::DarkGray)),
             };
 
-            let line = Line::from(vec![
-                Span::raw(if i == app.selected { "> " } else { "  " }),
-                Span::styled(
-                    &repo.identity,
-                    Style::default().fg(Color::White).add_modifier(if i == app.selected {
-                        Modifier::BOLD
-                    } else {
-                        Modifier::empty()
-                    }),
-                ),
-                Span::raw("  "),
-                status_str,
-                Span::raw("    "),
-                lock_str,
-                Span::raw(format!(
-                    "    {}ev  {} in  {} out  ",
-                    repo.event_count, repo.open_inbound, repo.open_outbound
-                )),
-                last_str,
-            ]);
-            ListItem::new(line)
+            Row::new(vec![
+                Cell::from(repo.identity.clone()),
+                status_cell,
+                lock_cell,
+                Cell::from(repo.event_count.to_string()),
+                Cell::from(repo.open_inbound.to_string()),
+                Cell::from(repo.open_outbound.to_string()),
+                Cell::from(repo.handoffs.to_string()),
+                Cell::from(repo.chain_depth.to_string()),
+                last_cell,
+            ])
         })
         .collect();
 
-    let list = List::new(items).block(
-        Block::default()
-            .title(header)
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)),
-    );
+    let widths = [
+        Constraint::Min(20),  // Repo
+        Constraint::Length(6), // Status
+        Constraint::Length(12),// Lock
+        Constraint::Length(6), // Events
+        Constraint::Length(3), // In
+        Constraint::Length(3), // Out
+        Constraint::Length(8), // Handoffs
+        Constraint::Length(5), // Chain
+        Constraint::Min(8),   // Last
+    ];
 
-    let mut state = ListState::default();
+    let table = Table::new(rows, widths)
+        .header(header)
+        .block(
+            Block::default()
+                .title(format!(" dotagent dashboard — {} repos  [r]escan  [q]uit ", app.repos.len()))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▸ ");
+
+    let mut state = ratatui::widgets::TableState::default();
     state.select(Some(app.selected));
-    f.render_stateful_widget(list, area, &mut state);
+    f.render_stateful_widget(table, area, &mut state);
 }
 
 fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
@@ -155,49 +161,65 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
         }
     };
 
-    let lines = vec![
-        Line::from(vec![
-            Span::styled(&repo.identity, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-            Span::raw(format!("  {}", repo.path.display())),
+    let handoff_str = repo.last_handoff_subject.as_deref().unwrap_or("(none)");
+
+    let rows = vec![
+        Row::new(vec![
+            Cell::from("Repo").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(format!("{}  ({})", repo.identity, repo.path.display()))
+                .style(Style::default().fg(Color::Cyan)),
         ]),
-        Line::raw(""),
-        Line::from(vec![
-            Span::raw("Events: "),
-            Span::styled(repo.event_count.to_string(), Style::default().fg(Color::White)),
-            Span::raw(" | In: "),
-            Span::styled(repo.open_inbound.to_string(), if repo.open_inbound > 0 { Style::default().fg(Color::Yellow) } else { Style::default() }),
-            Span::raw(" | Out: "),
-            Span::styled(repo.open_outbound.to_string(), Style::default()),
-            Span::raw(" | Handoffs: "),
-            Span::styled(repo.handoffs.to_string(), Style::default()),
-            Span::raw(" | Chain: "),
-            Span::styled(repo.chain_depth.to_string(), if repo.chain_depth > 3 { Style::default().fg(Color::Red) } else { Style::default() }),
+        Row::new(vec![
+            Cell::from("Events").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(format!("{}", repo.event_count)),
         ]),
-        Line::from(vec![
-            Span::raw("Lock: "),
-            Span::styled(&lock_str, match &repo.lock {
+        Row::new(vec![
+            Cell::from("In").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(format!("{}", repo.open_inbound))
+                .style(if repo.open_inbound > 0 { Style::default().fg(Color::Yellow) } else { Style::default() }),
+        ]),
+        Row::new(vec![
+            Cell::from("Out").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(format!("{}", repo.open_outbound)),
+        ]),
+        Row::new(vec![
+            Cell::from("Handoffs").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(format!("{}", repo.handoffs)),
+        ]),
+        Row::new(vec![
+            Cell::from("Chain").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(format!("{}", repo.chain_depth))
+                .style(if repo.chain_depth > 3 { Style::default().fg(Color::Red) } else { Style::default() }),
+        ]),
+        Row::new(vec![
+            Cell::from("Lock").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(lock_str.as_str()).style(match &repo.lock {
                 LockState::Free => Style::default(),
                 LockState::Held { .. } => Style::default().fg(Color::Yellow),
                 LockState::Stale { .. } => Style::default().fg(Color::Red),
             }),
         ]),
-        Line::raw(""),
-        Line::from(vec![
-            Span::raw("Last handoff: "),
-            match &repo.last_handoff_subject {
-                Some(s) => Span::styled(s.clone(), Style::default().fg(Color::DarkGray)),
-                None => Span::styled("(none)", Style::default().fg(Color::DarkGray)),
-            },
+        Row::new(vec![
+            Cell::from("Last").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(handoff_str).style(Style::default().fg(Color::DarkGray)),
         ]),
     ];
 
-    let block = Block::default()
-        .title(format!(" {} — detail ", repo.identity))
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+    let widths = [
+        Constraint::Length(8),
+        Constraint::Min(40),
+    ];
 
-    let paragraph = Paragraph::new(lines).block(block);
-    f.render_widget(paragraph, area);
+    let table = Table::new(rows, widths)
+        .block(
+            Block::default()
+                .title(format!(" {} — detail ", repo.identity))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        )
+        .column_spacing(2);
+
+    f.render_widget(table, area);
 }
 
 fn draw_log_list(f: &mut Frame, app: &App, area: Rect) {
