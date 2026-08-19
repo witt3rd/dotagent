@@ -1,4 +1,5 @@
 mod app;
+mod bus;
 mod kill;
 mod repo;
 mod ui;
@@ -105,11 +106,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = App::new(config);
     app.refresh();
 
+    // setup FIFO bus for real-time notifications from dispatch hooks
+    let bus_path = std::env::var("DOTAGENT_BUS").unwrap_or_else(|_| bus::DEFAULT_BUS.to_string());
+    let bus = bus::Bus::open(&bus_path);
+    app.bus_path = Some(bus_path);
+
     // event loop
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
 
-        if event::poll(Duration::from_millis(200))? {
+        // non-blocking read from bus (instant notification from hooks)
+        let bus_events = bus.read_nonblocking();
+        for evt in &bus_events {
+            // refresh the repo that was notified
+            if let Some(repo) = app.repos.iter_mut().find(|r| r.path.to_string_lossy() == evt.repo) {
+                *repo = repo::RepoInfo::from_path(&repo.path).unwrap_or_else(|| repo.clone());
+            }
+            app.last_activity = Some(chrono::Local::now().format("%H:%M:%S").to_string());
+        }
+
+        if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Press {
                     continue;

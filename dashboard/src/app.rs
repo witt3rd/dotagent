@@ -25,6 +25,8 @@ pub struct App {
     pub log_entries: Vec<LogEntry>,
     pub config: Config,
     pub last_scan: std::time::Instant,
+    pub bus_path: Option<String>,
+    pub last_activity: Option<String>,
 }
 
 impl App {
@@ -38,6 +40,8 @@ impl App {
             log_entries: Vec::new(),
             config,
             last_scan: std::time::Instant::now(),
+            bus_path: None,
+            last_activity: None,
         }
     }
 

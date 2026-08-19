@@ -119,4 +119,10 @@ setsid sh -c '
     rm -rf "$LOCK"
 ' >"${AGENT_DISPATCH_LOG:-$ROOT/.agent/.dispatch.log}" 2>&1 </dev/null &
 
+# --- 7. signal the dashboard (FIFO bus) -----------------------------------------
+# If a dashboard is running on this host, notify it of the activity. Non-blocking;
+# if the FIFO doesn't exist, the dashboard isn't running — exit silently.
+BUS="${DOTAGENT_BUS:-/tmp/dotagent-bus}"
+[ -p "$BUS" ] && printf '{"repo":"%s","ts":"%s"}\n' "$ROOT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$BUS" 2>/dev/null
+
 exit 0
