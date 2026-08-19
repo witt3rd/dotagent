@@ -84,17 +84,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         repos: vec![],
         scan_roots: vec![],
     });
-    config.repos.extend(repos.clone());
-    config.scan_roots.extend(scan_roots.clone());
-
-    // persist CLI args to config file so they survive between invocations
+    // if any config-modifying flags, persist and exit (no TUI)
     if !repos.is_empty() || !scan_roots.is_empty() {
         if let Some(parent) = std::path::Path::new(&config_file).parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        let toml_str = toml::to_string_pretty(&config).unwrap_or_default();
-        let _ = std::fs::write(&config_file, &toml_str);
+        // load existing config first, then merge
+        let existing = std::fs::read_to_string(&config_file).unwrap_or_default();
+        let mut config: repo::Config = toml::from_str(&existing).unwrap_or(repo::Config {
+            repos: vec![],
+            scan_roots: vec![],
+        });
+        // add only repos that aren't already present
+        for r in &repos {
+            if !config.repos.iter().any(|p| p == r) {
+                config.repos.push(r.clone());
+                println!("added repo: {}", r.display());
+            } else {
+                println!("repo already tracked: {}", r.display());
+            }
+        }
+        for s in &scan_roots {
+            if !config.scan_roots.iter().any(|p| p == s) {
+                config.scan_roots.push(s.clone());
+                println!("added scan root: {}", s.display());
+            } else {
+                println!("scan root already tracked: {}", s.display());
+            }
+        }
+        return Ok(());
     }
+
+    // no config-modifying flags: load config and launch TUI
+    let config_str = std::fs::read_to_string(&config_file).unwrap_or_default();
+    let config: repo::Config = toml::from_str(&config_str).unwrap_or(repo::Config {
+        repos: vec![],
+        scan_roots: vec![],
+    });
 
     // setup terminal
     enable_raw_mode()?;
