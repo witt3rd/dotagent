@@ -39,15 +39,15 @@ pub fn draw(f: &mut Frame, app: &App) {
 
 fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
     let header = Row::new(vec![
-        Cell::from("Repo").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("Status").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("Lock").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("Events").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("In").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("Out").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("Handoffs").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("Chain").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        Cell::from("Last").style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        Cell::from("Repo").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Status").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Lock").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Events").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("In").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Out").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Handoffs").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Chain").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Last").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
     ]);
 
     let rows: Vec<Row> = app
@@ -55,46 +55,51 @@ fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .map(|repo| {
             let status_cell = match &repo.status {
-                Status::Active => Cell::from("active").style(Style::default().fg(Color::Green)),
-                Status::Idle => Cell::from("idle").style(Style::default().fg(Color::DarkGray)),
-                Status::Stale => Cell::from("stale").style(Style::default().fg(Color::Yellow)),
-                Status::Error => Cell::from("error").style(Style::default().fg(Color::Red)),
+                Status::Active => Cell::from("active").style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                Status::Idle => Cell::from("idle").style(Style::default().fg(Color::Rgb(120, 120, 120))),
+                Status::Stale => Cell::from("stale").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Status::Error => Cell::from("error").style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
             };
 
             let lock_cell = match &repo.lock {
-                LockState::Free => Cell::from("free"),
+                LockState::Free => Cell::from("free").style(Style::default().fg(Color::Rgb(100, 100, 100))),
                 LockState::Held { pid, .. } => Cell::from(format!("held ({})", pid))
-                    .style(Style::default().fg(Color::Yellow)),
+                    .style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
                 LockState::Stale { pid, .. } => Cell::from(format!("STALE ({})", pid))
-                    .style(Style::default().fg(Color::Red)),
+                    .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
             };
+
+            let ev_color = if repo.event_count > 0 { Color::Green } else { Color::Rgb(100, 100, 100) };
+            let in_color = if repo.open_inbound > 0 { Color::Yellow } else { Color::Rgb(100, 100, 100) };
+            let out_color = Color::Rgb(130, 130, 255);
+            let chain_color = if repo.chain_depth > 3 { Color::Red } else if repo.chain_depth > 0 { Color::Yellow } else { Color::Rgb(100, 100, 100) };
 
             let last_cell = match &repo.last_event {
                 Some(ts) => {
                     let age = chrono::Utc::now().signed_duration_since(*ts);
                     if age.num_seconds() < 60 {
-                        Cell::from("just now").style(Style::default().fg(Color::Green))
+                        Cell::from("just now").style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
                     } else if age.num_minutes() < 60 {
-                        Cell::from(format!("{}m ago", age.num_minutes()))
+                        Cell::from(format!("{}m ago", age.num_minutes())).style(Style::default().fg(Color::Cyan))
                     } else if age.num_hours() < 24 {
-                        Cell::from(format!("{}h ago", age.num_hours()))
+                        Cell::from(format!("{}h ago", age.num_hours())).style(Style::default().fg(Color::Rgb(180, 180, 80)))
                     } else {
                         Cell::from(format!("{}d ago", age.num_days()))
                             .style(Style::default().fg(Color::Yellow))
                     }
                 }
-                None => Cell::from("never").style(Style::default().fg(Color::DarkGray)),
+                None => Cell::from("never").style(Style::default().fg(Color::Rgb(80, 80, 80))),
             };
 
             Row::new(vec![
-                Cell::from(repo.identity.clone()),
+                Cell::from(repo.identity.clone()).style(Style::default().fg(Color::White)),
                 status_cell,
                 lock_cell,
-                Cell::from(repo.event_count.to_string()),
-                Cell::from(repo.open_inbound.to_string()),
-                Cell::from(repo.open_outbound.to_string()),
-                Cell::from(repo.handoffs.to_string()),
-                Cell::from(repo.chain_depth.to_string()),
+                Cell::from(repo.event_count.to_string()).style(Style::default().fg(ev_color)),
+                Cell::from(repo.open_inbound.to_string()).style(Style::default().fg(in_color)),
+                Cell::from(repo.open_outbound.to_string()).style(Style::default().fg(out_color)),
+                Cell::from(repo.handoffs.to_string()).style(Style::default().fg(Color::Rgb(180, 130, 255))),
+                Cell::from(repo.chain_depth.to_string()).style(Style::default().fg(chain_color)),
                 last_cell,
             ])
         })
@@ -118,11 +123,13 @@ fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .title(format!(" dotagent dashboard — {} repos  [r]escan  [q]uit ", app.repos.len()))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray)),
+                .border_style(Style::default().fg(Color::Cyan))
+                .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
+                .bg(Color::Rgb(40, 40, 80))
+                .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▸ ");
@@ -165,43 +172,43 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
 
     let rows = vec![
         Row::new(vec![
-            Cell::from("Repo").style(Style::default().fg(Color::DarkGray)),
+            Cell::from("Repo").style(Style::default().fg(Color::Cyan)),
             Cell::from(format!("{}  ({})", repo.identity, repo.path.display()))
-                .style(Style::default().fg(Color::Cyan)),
+                .style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
         ]),
         Row::new(vec![
-            Cell::from("Events").style(Style::default().fg(Color::DarkGray)),
-            Cell::from(format!("{}", repo.event_count)),
+            Cell::from("Events").style(Style::default().fg(Color::Cyan)),
+            Cell::from(format!("{}", repo.event_count)).style(Style::default().fg(Color::Green)),
         ]),
         Row::new(vec![
-            Cell::from("In").style(Style::default().fg(Color::DarkGray)),
+            Cell::from("In").style(Style::default().fg(Color::Cyan)),
             Cell::from(format!("{}", repo.open_inbound))
-                .style(if repo.open_inbound > 0 { Style::default().fg(Color::Yellow) } else { Style::default() }),
+                .style(if repo.open_inbound > 0 { Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::Rgb(100, 100, 100)) }),
         ]),
         Row::new(vec![
-            Cell::from("Out").style(Style::default().fg(Color::DarkGray)),
-            Cell::from(format!("{}", repo.open_outbound)),
+            Cell::from("Out").style(Style::default().fg(Color::Cyan)),
+            Cell::from(format!("{}", repo.open_outbound)).style(Style::default().fg(Color::Rgb(130, 130, 255))),
         ]),
         Row::new(vec![
-            Cell::from("Handoffs").style(Style::default().fg(Color::DarkGray)),
-            Cell::from(format!("{}", repo.handoffs)),
+            Cell::from("Handoffs").style(Style::default().fg(Color::Cyan)),
+            Cell::from(format!("{}", repo.handoffs)).style(Style::default().fg(Color::Rgb(180, 130, 255))),
         ]),
         Row::new(vec![
-            Cell::from("Chain").style(Style::default().fg(Color::DarkGray)),
+            Cell::from("Chain").style(Style::default().fg(Color::Cyan)),
             Cell::from(format!("{}", repo.chain_depth))
-                .style(if repo.chain_depth > 3 { Style::default().fg(Color::Red) } else { Style::default() }),
+                .style(if repo.chain_depth > 3 { Style::default().fg(Color::Red).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::Rgb(100, 100, 100)) }),
         ]),
         Row::new(vec![
-            Cell::from("Lock").style(Style::default().fg(Color::DarkGray)),
+            Cell::from("Lock").style(Style::default().fg(Color::Cyan)),
             Cell::from(lock_str.as_str()).style(match &repo.lock {
-                LockState::Free => Style::default(),
-                LockState::Held { .. } => Style::default().fg(Color::Yellow),
-                LockState::Stale { .. } => Style::default().fg(Color::Red),
+                LockState::Free => Style::default().fg(Color::Rgb(100, 100, 100)),
+                LockState::Held { .. } => Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+                LockState::Stale { .. } => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             }),
         ]),
         Row::new(vec![
-            Cell::from("Last").style(Style::default().fg(Color::DarkGray)),
-            Cell::from(handoff_str).style(Style::default().fg(Color::DarkGray)),
+            Cell::from("Last").style(Style::default().fg(Color::Cyan)),
+            Cell::from(handoff_str).style(Style::default().fg(Color::Rgb(160, 160, 160))),
         ]),
     ];
 
@@ -215,7 +222,8 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .title(format!(" {} — detail ", repo.identity))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray)),
+                .border_style(Style::default().fg(Color::Cyan))
+                .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         )
         .column_spacing(2);
 
@@ -324,7 +332,7 @@ fn draw_keybar(f: &mut Frame, app: &App, area: Rect) {
     };
     let bar = Paragraph::new(Line::from(Span::styled(
         mode_str,
-        Style::default().fg(Color::DarkGray),
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
     )));
     f.render_widget(bar, area);
 }
@@ -405,8 +413,9 @@ fn draw_kill_confirm(f: &mut Frame, app: &App) {
     ];
 
     let block = Block::default()
+        .title(" kill agent ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Red));
+        .border_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
 
     let paragraph = Paragraph::new(lines).block(block);
     f.render_widget(paragraph, area);
