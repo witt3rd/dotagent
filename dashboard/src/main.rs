@@ -23,19 +23,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--repo" => {
+            "--repo" | "repo" => {
                 i += 1;
                 if let Some(p) = args.get(i) {
                     repos.push(std::path::PathBuf::from(p));
                 }
             }
-            "--scan-root" => {
+            "--scan-root" | "scan-root" => {
                 i += 1;
                 if let Some(p) = args.get(i) {
                     scan_roots.push(std::path::PathBuf::from(p));
                 }
             }
-            "--config" => {
+            "--config" | "config" => {
                 i += 1;
                 if let Some(p) = args.get(i) {
                     config_path = Some(p.clone());
@@ -79,11 +79,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .to_string()
         })
     });
-    let config_str = std::fs::read_to_string(&config_file).unwrap_or_default();
-    let mut config: repo::Config = toml::from_str(&config_str).unwrap_or(repo::Config {
-        repos: vec![],
-        scan_roots: vec![],
-    });
     // if any config-modifying flags, persist and exit (no TUI)
     if !repos.is_empty() || !scan_roots.is_empty() {
         if let Some(parent) = std::path::Path::new(&config_file).parent() {
@@ -112,6 +107,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("scan root already tracked: {}", s.display());
             }
         }
+        let toml_str = toml::to_string_pretty(&config).unwrap_or_default();
+        let _ = std::fs::write(&config_file, toml_str);
         return Ok(());
     }
 
