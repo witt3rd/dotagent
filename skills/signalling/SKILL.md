@@ -8,7 +8,7 @@ description: >-
   host; works on any plain git repo with any "bring your own agent". Covers the event-log
   protocol, the event schema, the message lifecycle, the BYO-agent contract, and the
   determinism gate. Use when you need one repo to talk to another (or to its own future
-  self), when you want to replace a single growing HANDOFF.md with a recoverable event log,
+  self), when you want to replace a single growing handoff file with a recoverable event log,
   or when wiring an agent into any existing git repo.
 metadata:
   scope: any git repo
@@ -23,7 +23,7 @@ intelligence** when its git history is a ledger: everything it was asked, said, 
 where it left off is an *event* in git — recoverable across reboot, session, and agent
 turnover, auditable by anyone, on any plain git repo.
 
-A single growing `HANDOFF.md` fails: it's great for context-loading but it doesn't scale —
+A single growing handoff file fails: it's great for context-loading but it doesn't scale —
 it bloats, conflates your notes with other people's messages, and merges into chaos when two
 agents write it at once. The fix is to stop maintaining one mutable state file and make the
 **history itself** the state.

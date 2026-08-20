@@ -52,7 +52,7 @@ This repo is the extraction of that method into a reusable, open package:
 - **Git as control plane / event sourcing.** Stop maintaining a mutable state file; make the
   history the state. Every event is one atomic file; the commit graph is the ledger. This
   buys ordering, integrity, recovery, audit, and concurrency for free.
-- **The event log, not a growing HANDOFF.md.** A single accumulating handoff file fails at
+- **The event log, not a growing file.** A single accumulating handoff file fails at
   scale. Instead: append-only atomic events, and a *generated* read-model projection
   (the `S` event) that is always derived, never hand-edited — so context-loading stays bounded
   and the log stays authoritative.

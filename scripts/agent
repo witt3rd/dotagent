@@ -426,7 +426,34 @@ cmd_log() {
 
 cmd_check() {
     local rc=0 types="H O I R C S" f
-    # schema + filename conformity
+
+    # --- inhabitation requirements (is this repo properly inhabited?) ---
+    if [ ! -f "$ROOT/.agent/config" ]; then
+        echo "check: .agent/config missing — run 'agent init'"; rc=2
+    fi
+    if [ ! -d "$LOG_DIR" ]; then
+        echo "check: .agent/log/ missing — run 'agent init'"; rc=2
+    fi
+    if [ ! -x "$ROOT/scripts/agent" ]; then
+        echo "check: scripts/agent missing"; rc=2
+    fi
+    if [ -f "$ROOT/.gitignore" ]; then
+        grep -q '.busy' "$ROOT/.gitignore" 2>/dev/null || { echo "check: .gitignore missing .busy entry"; rc=2; }
+        grep -q '.dispatch.log' "$ROOT/.gitignore" 2>/dev/null || { echo "check: .gitignore missing .dispatch.log entry"; rc=2; }
+    fi
+    if [ ! -d "$ROOT/skills" ]; then
+        echo "check: skills/ missing"; rc=2
+    fi
+
+    # --- anti-pattern guards (things that should NOT exist in an inhabited repo) ---
+    if [ -f "$ROOT/.agent/HANDOFF.md" ]; then
+        echo "check: HANDOFF.md is taboo — remove it (use the event log, not a growing file)"; rc=2
+    fi
+    if [ -f "$ROOT/STATE.md" ] || git -C "$ROOT" ls-files .agent/STATE.md 2>/dev/null | grep -q .; then
+        echo "check: STATE.md is obsolete — remove it (state is an S event in the log)"; rc=2
+    fi
+
+    # --- event schema + filename conformity ---
     for f in "$LOG_DIR"/*.md; do
         [[ -f "$f" ]] || continue
         local t id base bn

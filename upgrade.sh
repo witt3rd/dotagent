@@ -64,13 +64,21 @@ else
     echo "  dispatch hook: updated"
 fi
 
-# 3. Clean STATE.md
+# 3. Clean deprecated artifacts
 if [ -f "$REPO/.agent/STATE.md" ] || git -C "$REPO" ls-files .agent/STATE.md 2>/dev/null | grep -q .; then
     doit git -C "$REPO" rm -f .agent/STATE.md 2>/dev/null || true
     doit rm -f "$REPO/.agent/STATE.md"
     echo "  STATE.md: removed (S-event migration)"
 else
     echo "  STATE.md: already absent"
+fi
+
+if [ -f "$REPO/.agent/HANDOFF.md" ] || git -C "$REPO" ls-files .agent/HANDOFF.md 2>/dev/null | grep -q .; then
+    doit git -C "$REPO" rm -f .agent/HANDOFF.md 2>/dev/null || true
+    doit rm -f "$REPO/.agent/HANDOFF.md"
+    echo "  HANDOFF.md: removed (event log replaces growing files)"
+else
+    echo "  HANDOFF.md: already absent"
 fi
 
 # 4. .gitignore

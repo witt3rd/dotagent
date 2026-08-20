@@ -105,6 +105,18 @@ else
     echo "  .agent/: scaffolded"
 fi
 
+# --- 2b. clean anti-patterns -------------------------------------------------
+if [ -f "$REPO/.agent/HANDOFF.md" ]; then
+    doit git -C "$REPO" rm -f .agent/HANDOFF.md 2>/dev/null || true
+    doit rm -f "$REPO/.agent/HANDOFF.md"
+    echo "  HANDOFF.md: removed (event log replaces growing files)"
+fi
+if [ -f "$REPO/.agent/STATE.md" ] || git -C "$REPO" ls-files .agent/STATE.md 2>/dev/null | grep -q .; then
+    doit git -C "$REPO" rm -f .agent/STATE.md 2>/dev/null || true
+    doit rm -f "$REPO/.agent/STATE.md"
+    echo "  STATE.md: removed (state is an S event in the log)"
+fi
+
 # --- 3. runtime state out of the tree ---------------------------------------
 GITIGNORE="$REPO/.gitignore"
 if [ -f "$GITIGNORE" ] && grep -q '^\.agent/\.busy' "$GITIGNORE" 2>/dev/null; then
