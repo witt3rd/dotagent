@@ -33,7 +33,7 @@ makes the work good.
 
 ---
 
-## 1. Assess & take possession (the original caretaker-assessment)
+## 1. Assess & take possession
 
 **Possess, don't inventory.** A new caretaker's first job isn't to list what's there — it's
 to make the house habitable and claim it: question things, don't passively record them.

@@ -50,10 +50,11 @@ versioned — and needs nothing but git.
   .agent/
     log/            # the append-only event log — ONE FILE PER EVENT
       H--<ts>--<id>.md      # handoff   (a self-snapshot at session end)
-      O--<ts>--<id>.md      # outbound  (to another repo/agent)
-      I--<ts>--<id>.md      # inbound   (from another repo/agent)
-      R--<ts>--<id>.md      # resolve   (closes an O or I event)
-    STATE.md        # GENERATED read-model projection — never hand-edited
+       O--<ts>--<id>.md      # outbound  (to another repo/agent)
+       I--<ts>--<id>.md      # inbound   (from another repo/agent)
+       R--<ts>--<id>.md      # resolve   (closes an O or I event)
+       C--<ts>--<id>.md      # claim     (marks an O or I as owned)
+       S--<ts>--<id>.md      # state     (projection snapshot of the repo)
     config          # `identity: <name>` (or set AGENT_ID env)
 ```
 
@@ -119,7 +120,7 @@ agent resolve <event-id> [reason] [--target REPO]
 agent claim <event-id> [reason]    # mark owned (excluded from inbox/outbox/dispatch)
 agent inbox                      # list open inbound (the mailbox, as a query)
 agent outbox                     # list open outbound
-agent state                      # derive + print STATE.md
+agent state                      # derive + print current state
 agent log                        # print the event history
 agent check                      # integrity/conformity gate → exit 0/2/3
 agent --help

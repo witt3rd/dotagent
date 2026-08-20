@@ -107,7 +107,7 @@ dotagent/
 │   ├── cursor/        # .cursor/rules delta
 │   ├── dispatch/      # the post-commit hook orchestrator (guardrails + spawn)
 │   └── github-aw/     # GH-AW: GitHub as the native dispatcher (engine def + caretaker workflow)
-└── templates/         # drop-in starters (AGENTS.md, STATE.md) for adopting the pattern
+└── templates/         # drop-in starters (AGENTS.md) for adopting the pattern
 ```
 
 ### The skills
