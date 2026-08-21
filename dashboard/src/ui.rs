@@ -40,6 +40,7 @@ pub fn draw(f: &mut Frame, app: &App) {
 fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
     let header = Row::new(vec![
         Cell::from("Repo").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Cell::from("Type").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         Cell::from("Status").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         Cell::from("Lock").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         Cell::from("Events").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
@@ -93,6 +94,11 @@ fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
 
             Row::new(vec![
                 Cell::from(repo.identity.clone()).style(Style::default().fg(Color::White)),
+                if repo.is_worktree {
+                    Cell::from("wt").style(Style::default().fg(Color::Rgb(180, 130, 255)).add_modifier(Modifier::BOLD))
+                } else {
+                    Cell::from("repo").style(Style::default().fg(Color::Rgb(100, 100, 100)))
+                },
                 status_cell,
                 lock_cell,
                 Cell::from(repo.event_count.to_string()).style(Style::default().fg(ev_color)),
@@ -107,6 +113,7 @@ fn draw_repo_list(f: &mut Frame, app: &App, area: Rect) {
 
     let widths = [
         Constraint::Min(20),  // Repo
+        Constraint::Length(4), // Type
         Constraint::Length(6), // Status
         Constraint::Length(12),// Lock
         Constraint::Length(6), // Events

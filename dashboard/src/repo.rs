@@ -37,6 +37,7 @@ pub struct RepoInfo {
     pub open_inbound: usize,
     pub open_outbound: usize,
     pub handoffs: usize,
+    pub is_worktree: bool,
     pub chain_depth: usize,
     pub last_event: Option<DateTime<Utc>>,
     pub last_handoff_subject: Option<String>,
@@ -61,6 +62,7 @@ impl RepoInfo {
             })
             .unwrap_or_else(|| path.file_name().unwrap_or_default().to_string_lossy().to_string());
 
+        let is_worktree = path.join(".git").is_file(); // worktrees have a .git file, not directory
         let log_dir = agent_dir.join("log");
         let events: Vec<String> = if log_dir.exists() {
             fs::read_dir(&log_dir)
@@ -101,9 +103,9 @@ impl RepoInfo {
                 let ts_str = f
                     .split("--")
                     .nth(1)?
-                    .trim_end_matches(".md")
-                    .replace("T", "T")
-                    .replace("Z", "Z");
+                    .split('-')
+                    .next()? // strip the event ID (everything after the first '-')
+                    .trim_end_matches(".md");
                 DateTime::parse_from_str(&format!("{}Z", ts_str), "%Y-%m-%dT%H%M%SZ")
                     .ok()
                     .map(|dt| dt.with_timezone(&Utc))
@@ -142,7 +144,7 @@ impl RepoInfo {
         };
 
         Some(RepoInfo {
-            path: path.to_path_buf(),
+            path,
             identity,
             status,
             lock,
@@ -150,6 +152,7 @@ impl RepoInfo {
             open_inbound,
             open_outbound,
             handoffs,
+            is_worktree,
             chain_depth,
             last_event,
             last_handoff_subject,
