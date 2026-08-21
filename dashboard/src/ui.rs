@@ -318,7 +318,10 @@ fn draw_log_detail(f: &mut Frame, app: &App) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
 
-    let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .scroll((app.detail_scroll as u16, 0))
+        .wrap(Wrap { trim: false });
     f.render_widget(paragraph, area);
 }
 
@@ -326,7 +329,7 @@ fn draw_keybar(f: &mut Frame, app: &App, area: Rect) {
     let mode_str = match app.mode {
         Mode::Dashboard => "[↑↓] select  [Enter] log  [s] state  [k] kill  [r] rescan  [q] quit",
         Mode::Log => "[↑↓] select  [Enter] view  [Esc] back  [q] quit",
-        Mode::LogDetail => "[Esc] back to log  [q] quit",
+        Mode::LogDetail => "[↑↓] scroll  [h/Esc] back to log  [q] quit",
         Mode::State => "[Esc] back  [q] quit",
         Mode::KillConfirm => "[y] confirm kill  [Esc] cancel",
     };

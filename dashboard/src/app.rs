@@ -23,6 +23,7 @@ pub struct App {
     pub mode: Mode,
     pub log_selected: usize,
     pub log_entries: Vec<LogEntry>,
+    pub detail_scroll: usize,
     pub config: Config,
     pub last_scan: std::time::Instant,
     pub bus_path: Option<String>,
@@ -38,6 +39,7 @@ impl App {
             mode: Mode::Dashboard,
             log_selected: 0,
             log_entries: Vec::new(),
+            detail_scroll: 0,
             config,
             last_scan: std::time::Instant::now(),
             bus_path: None,
@@ -56,6 +58,7 @@ impl App {
     pub fn load_log(&mut self) {
         self.log_entries.clear();
         self.log_selected = 0;
+        self.detail_scroll = 0;
         if let Some(repo) = self.selected_repo() {
             let log_dir = repo.path.join(".agent/log");
             if !log_dir.exists() {
@@ -70,7 +73,7 @@ impl App {
                         .collect()
                 })
                 .unwrap_or_default();
-            files.sort();
+            files.sort_by(|a, b| b.cmp(a)); // most recent first
             for f in files {
                 let content = std::fs::read_to_string(log_dir.join(&f)).unwrap_or_default();
                 let event_type = f.chars().next().unwrap_or('?');
@@ -121,5 +124,13 @@ impl App {
         if !self.log_entries.is_empty() && self.log_selected + 1 < self.log_entries.len() {
             self.log_selected += 1;
         }
+    }
+
+    pub fn detail_up(&mut self) {
+        self.detail_scroll = self.detail_scroll.saturating_sub(1);
+    }
+
+    pub fn detail_down(&mut self) {
+        self.detail_scroll = self.detail_scroll.saturating_add(1);
     }
 }

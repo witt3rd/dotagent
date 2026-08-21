@@ -44,6 +44,8 @@ pub struct RepoInfo {
 
 impl RepoInfo {
     pub fn from_path(path: &Path) -> Option<Self> {
+        // canonicalize to avoid duplicate entries from different path representations
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let agent_dir = path.join(".agent");
         let config_file = agent_dir.join("config");
         if !config_file.exists() {

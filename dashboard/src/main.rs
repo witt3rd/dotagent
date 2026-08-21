@@ -183,6 +183,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     Mode::LogDetail => match key.code {
                         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.mode = Mode::Log,
+                        KeyCode::Up | KeyCode::Char('k') => app.detail_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.detail_down(),
                         KeyCode::Char('q') => break,
                         _ => {}
                     },
