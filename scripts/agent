@@ -474,11 +474,38 @@ cmd_check() {
             R|C) [[ -n "$(fm re "$f")" ]] || { echo "check: $t needs re in $base"; rc=2; } ;;
         esac
     done
-    # git state
+    # --- git state ---
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         echo "check: not a git repo"; rc=3
-    elif [[ -n "$(git status --porcelain)" ]]; then
-        echo "check: uncommitted changes present"; rc=3
+    else
+        # uncommitted work
+        if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
+            echo "check: uncommitted changes present"; rc=3
+        fi
+        # unpushed commits
+        local unpushed
+        unpushed="$(git -C "$ROOT" log --oneline origin/main..HEAD 2>/dev/null | wc -l)"
+        if [ "${unpushed:-0}" -gt 0 ]; then
+            echo "check: $unpushed unpushed commit(s)"; rc=3
+        fi
+        # local branches beyond mainline
+        local stale_branches
+        stale_branches="$(git -C "$ROOT" branch --merged origin/main 2>/dev/null | grep -v '^\*' | grep -v 'main\|master' | head -5)"
+        if [ -n "$stale_branches" ]; then
+            echo "check: merged local branch(es): $stale_branches"; rc=3
+        fi
+        # stale worktrees
+        local stale_wt
+        stale_wt="$(git -C "$ROOT" worktree list 2>/dev/null | grep 'prunable')"
+        if [ -n "$stale_wt" ]; then
+            echo "check: stale worktree(s) detected"; rc=3
+        fi
+        # mainline at origin tip
+        local ahead
+        ahead="$(git -C "$ROOT" status -sb 2>/dev/null | head -1 | grep -o 'ahead [0-9]*')"
+        if [ -n "$ahead" ]; then
+            echo "check: mainline $ahead of origin"; rc=3
+        fi
     fi
     if [[ $rc -eq 0 ]]; then echo "check: clean ($(ls -1 "$LOG_DIR"/*.md 2>/dev/null | wc -l) events)"; fi
     exit $rc

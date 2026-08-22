@@ -254,8 +254,9 @@ provisions the wake.
 
 ### House discipline (this repo)
 
-- **Worktree rule:** primary clone stays on the mainline; work in `dotagent.wt/<branch>/`
-  via `git wt-new` / `git wt-rm`. Never commit from the primary clone.
+- **Two modes, one rule:** work on main during active debugging (commit frequently); use
+  worktrees for parallel features. **Never accumulate uncommitted work.**
+- **Before any session:** `git pull origin main`. Never start from a stale state.
 - **Stage only your own files.** Never `git add -A`.
 - **Keep the charter truthful.** When the method changes, update the skills and this
   AGENTS.md together — a doc that disagrees with reality is drift.

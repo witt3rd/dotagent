@@ -1,13 +1,11 @@
 ---
 name: git
 description: >-
-  House git discipline that applies to all repos. The primary clone stays on the mainline and
-  is never checked out to a feature branch; all work happens in per-branch linked worktrees
-  under <repo>.wt/<branch>/, mechanized by git-wt-new / git-wt-rm helpers. Covers repo hygiene
-  and the clean end-state: no stale worktrees, no local branches beyond the mainline,
-  mainline at tip of origin, primary clone clean. Use when creating a branch, making any
-  change, committing, landing/merging, cleaning up a merged branch, repairing a moved
-  worktree, auditing a repo's hygiene, or asking 'is this repo clean' — in any repo.
+  House git discipline — applies to ALL repos. Two modes: work on main during active
+  debugging/iteration (commit frequently), or use worktrees for parallel feature work. Never
+  accumulate uncommitted work. Always sync with origin/main before starting. Covers repo
+  hygiene and the clean end-state: no stale worktrees, no local branches beyond the mainline,
+  mainline at tip of origin, primary clone clean.
 metadata:
   aliases: [worktree, repo-hygiene, clean-end-state]
   deps: [caretaker]
@@ -15,11 +13,56 @@ metadata:
 
 # House git discipline (all repos)
 
-The rule: the primary clone is a clean mirror of the mainline. **Never commit from it, never
-check it out to a feature branch.** All work happens in a per-branch **linked worktree** under
-`<repo>.wt/<branch>/` (a sibling directory of the primary clone, named `<repo>.wt`).
+## Two modes, one rule
 
-This is mechanized — do not hand-run `git worktree add`.
+**Mode 1: Active debugging/iteration** — work on main. Commit small batches frequently.
+Push to a branch when stable. The git history is a breadcrumb trail.
+
+**Mode 2: Parallel feature work** — use worktrees. Different agents building different
+features that don't touch the same files. If they do touch the same files, coordinate:
+one agent works at a time on that file.
+
+The rule: **never accumulate uncommitted work.** Commit every 30 minutes during debugging.
+Small, revertable commits. "Fix X" not "down to one last bug?"
+
+## Active debugging workflow
+
+```bash
+# 1. Start: sync with origin/main
+git checkout main
+git pull origin main
+
+# 2. Work: commit small batches frequently
+git add <files>
+git commit -m "fix: describe what changed"
+# ... repeat every 30 minutes ...
+
+# 3. When ready for PR: push to a branch
+git checkout -b feat/my-feature
+git push origin feat/my-feature
+gh pr create --repo <owner>/<repo> --base main --head feat/my-feature
+
+# 4. After merge: clean up
+git checkout main
+git pull origin main
+git branch -d feat/my-feature
+```
+
+## Parallel feature workflow (worktrees)
+
+Use worktrees when two agents are building **distinct features** that don't touch the
+same files. If they do touch the same files, coordinate — one agent works at a time on
+that file.
+
+```bash
+# Create a worktree for a parallel feature
+git wt-new feat/my-feature
+cd <repo>.wt/feat--my-feature
+# ... work, commit, push, open PR ...
+
+# After merge: clean up
+git wt-rm feat/my-feature
+```
 
 ## The two commands
 
@@ -29,23 +72,38 @@ git wt-new docs/foo
 #   -> <parent>/<repo>.wt/docs--foo/ on branch docs/foo
 #   forks from the mainline (--start <ref> overrides)
 cd <parent>/<repo>.wt/docs--foo
-# ...work, commit, push, open a PR from inside the worktree...
+# ...work, commit, push, open PR from inside the worktree...
 
 # After the merge: remove the worktree AND delete the branch, together
 git wt-rm docs/foo
 #   safe-delete: refuses dirty trees / unmerged branches unless --force
 ```
 
-The helpers are small scripts on PATH (`git-wt-new`, `git-wt-rm`; git auto-discovers
-`git-<cmd>` on PATH); they work in any repo.
+Scripts live at `~/.local/bin/git-wt-new` and `~/.local/bin/git-wt-rm`.
 
 ## Conventions
 
 - Branch `docs/<x>` / `fix/<x>` / `feat/<x>` / `task/<x>` → folder `docs--<x>` (kebab-case,
   `/` → `--`). Match the repo's existing branch shape (`git branch -a`) when unsure.
-- Keep the main tree clean; **verify `origin/main` (or `master`) hasn't moved before
-  landing**.
-- Never commit from the primary clone — always from the feature worktree.
+- **Before opening a PR, sync with origin/main** — always `git pull origin main` first,
+  rebase if needed, then push.
+- Commit messages: imperative mood, ≤72 chars. "fix: ..." / "feat: ..." / "chore: ..."
+
+## Before starting any session
+
+```bash
+git checkout main
+git pull origin main
+```
+
+Always start from the latest origin/main. Never start from a stale state.
+
+## Never accumulate uncommitted work
+
+- Commit every 30 minutes during debugging
+- Small, revertable commits: "fix smoke test", "add debug logging", "revert that"
+- The git history is a breadcrumb trail, not a pristine record
+- If you need to roll back, `git revert <commit>` — don't lose work
 
 ## State and repair
 
@@ -60,41 +118,38 @@ The helpers are small scripts on PATH (`git-wt-new`, `git-wt-rm`; git auto-disco
 agent to pick up cold — when ALL of these hold:
 
 1. **No stale worktrees.** Every worktree under `<repo>.wt/` belongs to a branch whose work
-   is still in flight. Once a branch is merged (or abandoned), the worktree goes away:
-   `git wt-rm <branch>` (removes the worktree AND the branch together). A worktree whose
-   branch is already in the mainline is **stale** — remove it unless it's the deliberate
-   live wiring for a test. A directory in `<repo>.wt/` that is **not** a registered worktree
-   is debris — remove it. The `.wt/` namespace is **flat** (one worktree per branch as a
-   direct child); never category subfolders.
-2. **No local branches beyond the mainline.** `git branch` should show only the mainline
-   plus any branch with a live worktree. A merged branch lingering as a local branch is a
-   cleanup miss — `git wt-rm` deletes both.
+   is still in flight. Once merged, remove it: `git wt-rm`.
+2. **No local branches beyond the mainline.** `git branch` shows only the mainline plus any
+   branch with a live worktree.
 3. **The mainline is at the tip of origin** (or deliberately ahead/behind and recorded).
    `git status -sb` on the mainline should read `## main...origin/main` with no
-   `ahead`/`behind` — unless a push/PR is intentionally deferred, in which case that pending
-   state is written down in the handoff so no one is surprised.
-4. **The primary clone is clean.** `git status --porcelain` is empty; the mainline is never
-   checked out to a feature branch and never has uncommitted/unpushed work sitting in it.
+   `ahead`/`behind` — unless a push/PR is intentionally deferred.
+4. **The primary clone is clean.** No uncommitted work. All work committed.
 
-**The one legitimate exception — a worktree wired to a live profile for a test.** A worktree
-whose plugin/provider symlinks point at it from a running profile is *intentionally* kept
-even after its branch content is merged, because removing it would break the running profile.
-That's fine — but say so in the handoff so a future caretaker knows it's deliberate.
+## Integrity sweep
 
-**As a caretaker, end every session by checking this list** and either restoring the clean
-state or recording the deliberate deviation. Leaving a repo with stale worktrees + leftover
-branches + an unpushed mainline is a known, named failure — not an accident.
+Run these checks IN ORDER. Fix what fails, then move on.
+
+```bash
+git fetch origin
+```
+
+1. **Unpushed commits** (`git status -sb`, `git log --oneline origin/main..HEAD`)
+2. **Uncommitted work** (`git status --porcelain`)
+3. **Local branches — merged or abandoned?** (`git branch --merged origin/main`)
+4. **Stale worktrees** (`git worktree list`)
+5. **The mainline is at origin tip** (`git fetch origin && git status -sb`)
+
+## The handoff channel
+
+Where the repo has `scripts/agent` (dotagent-inhabited), write it via `agent handoff
+<subject>`. Elsewhere, `.agent/HANDOFF.md`. Never hand-edit a growing `.agent/HANDOFF.md`
+in a ledger repo — the ledger replaces it.
 
 ## As an agent
 
-- Any change = `git wt-new <branch>` → work there → commit → the rest is the repo's normal
-  flow. Delete the worktree + branch on merge with `git wt-rm <branch>`.
-- Read each repo's AGENTS.md for repo-specific mainline/landing rules (some use `main`,
-  some `master`).
-- Never `git add -A` — stage only the files you touched. Never force push or `reset --hard`.
-- A clean mainline, clean log (`agent check`), and a written handoff is what "done" means.
-
-## Sibling skills
-
-- **`caretaker`** — the loop that applies this hygiene at session end.
-- **`signalling`** — the event-log ledger whose integrity this discipline protects.
+- **During debugging:** work on main, commit frequently, push when stable.
+- **For parallel features:** use worktrees. Different agents, different files.
+- **Before any session:** `git pull origin main`.
+- **Before any PR:** sync with origin/main, rebase if needed.
+- Read each repo's AGENTS.md for repo-specific rules.
