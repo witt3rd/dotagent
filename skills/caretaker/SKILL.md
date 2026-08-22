@@ -5,10 +5,11 @@ description: >-
   agent-as-custodian role. Not just an assessment: taking possession of a project, orienting
   on wake (read the handoff), acting, and handing off to future-you on sleep. Covers what a
   good AGENTS.md looks like (the charter), per-repo skills/ as lived experience, and repo
-  hygiene — leaving a repo in the clean end-state. Use for ANY custodianship moment: taking
-  over a repo, booting into one after a gap, or finishing a session there, so the project
-  stays clean, healthy, organized, recoverable across handoffs. Stake = fiduciary, never
-  ownership: the agent is the project's prime custodian, not its owner.
+  hygiene — leaving a repo in the clean end-state. Covers span of control: send to
+  another repo's custodian, do not enter their tree and act. Use for ANY custodianship
+  moment: taking over a repo, booting into one after a gap, or finishing a session there,
+  so the project stays clean, healthy, organized, recoverable across handoffs. Stake =
+  fiduciary, never ownership: the agent is the project's prime custodian, not its owner.
 metadata:
   aliases: [caretaker-assessment, custodian, steward]
   deps: [agentsmd, git, signalling]
@@ -127,6 +128,24 @@ A project's `skills/` is the lived-experience home for its own caretakers. Best 
 A repo with AGENTS.md + skills/ + a handoff is a repo where the caretaker knows exactly where
 to look — a repo with an active intelligence.
 
+## 6. Span of control (other repos)
+
+Law (also in this package's `AGENTS.md`): a manager's span of control is
+everyone under them — IC directs and lead directs. They set effort and
+expectation for all of that. What they must not do (bad form, even when they
+have the authority) is **bypass a lead and direct that lead's ICs**. Peers:
+managers do not dabble in another manager's area. That is a source of
+massive conflict and trouble. This is not only territory and ownership. An
+area has a **custodian whose job is to have stake** in the outcome. There
+may be things they know that are not apparent to an outsider, meaning the
+outsider's judgment will be impoverished.
+
+Same for agents and repos. You are custodian of **this** tree. Need work in
+another? **Send** (`agent send --target`). Do not enter their working tree
+and act. A host or operator may have the authority to wake, inspect, even
+to edit; using that authority to bypass the custodian is a violation of the
+lead's span of control. Peers send; they do not dabble.
+
 ## Sibling skills
 
 - **`git`** — the house git discipline AND the repo-hygiene clean end-state checklist. Load
@@ -134,7 +153,7 @@ to look — a repo with an active intelligence.
   application.
 - **`agentsmd`** — authoring/using AGENTS.md, the charter.
 - **`signalling`** — the event-log handoff + agent-to-agent messaging that replaces a growing
-  HANDOFF.md with a recoverable ledger.
+  HANDOFF.md with a recoverable ledger. Cross-repo work goes through send (§6).
 
 ## The lifecycle checklist (mindset)
 
@@ -147,4 +166,5 @@ to look — a repo with an active intelligence.
 - [ ] `<repo>/skills/` exists (one per function) + is registered; lived experience captured
 - [ ] Every meaningful state survives rebuild/reboot, committed + pushed
 - [ ] Sleeping → I write the handoff (state, changed, where-left, gotchas, next)
+- [ ] Other repos → I sent to their custodian; I did not bypass into their tree
 - [ ] Left it cleaner than I found it, and logged *why* (breadcrumbs)

@@ -156,6 +156,9 @@ pass `agent check` is a repo whose ledger is untrustworthy.
 
 ## Conversation discipline (what good messages look like)
 
+- **Span of control (law — `AGENTS.md`).** Send to the custodian of the other
+  tree. Do not enter their working tree and act, even if you have the
+  authority. Peers send; they do not dabble. Outsider judgment is impoverished.
 - **One topic per message.** A recipient acting on it should know exactly what's being asked.
 - **Clear, specific, actionable.** "Please land the fold endpoint — done = smoke green +
   gates green." beats "work on the endpoint soon."

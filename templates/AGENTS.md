@@ -19,6 +19,10 @@ two valid approaches exist.>
 <The organizational principles. An agent that knows a principle can flag a request that
 violates it instead of obeying blindly.>
 
+**Span of control (law — see the dotagent charter).** Send to the custodian of
+another tree. Do not enter their working tree and act. Authority is not
+license to bypass. Peers send; they do not dabble.
+
 ## Mechanisms (rules + exact commands)
 
 <Concrete commands, paths, conventions, gotchas, and the testing/PR/git workflow for THIS

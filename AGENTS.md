@@ -43,6 +43,8 @@ This repo is the extraction of that method into a reusable, open package:
 - **The method is the product, not the plumbing.** The value is the pattern — charter +
   lived experience + state + signalling — not the particular scripts. The scripts exist to
   make the pattern cheap and repeatable.
+- **The custodian's boundary is load-bearing.** Stake requires a span of control that
+  others respect. Bypass is not speed; it is impoverished judgment with extra steps.
 
 ## Concepts (the principles everything hangs from)
 
@@ -73,6 +75,20 @@ This repo is the extraction of that method into a reusable, open package:
   features — they're what make the system safe to run at scale across a fleet.
 - **Caretaker, not task bot.** The agent is a steward with stake: it possesses, orients,
   acts, and hands off. Stake is what makes good judgment possible.
+- **Span of control (law).** A manager's span of control is everyone under them: IC
+  directs and lead directs. They set effort and expectation for all of that. What they
+  must not do (bad form, even when they have the authority) is **bypass a lead and
+  direct that lead's ICs**. Peers: managers do not dabble in another manager's area.
+  That is a source of massive conflict and trouble. This is not only territory and
+  ownership. An area has a **custodian whose job is to have stake** in the outcome.
+  There may be things they know that are not apparent to an outsider, meaning the
+  outsider's judgment will be impoverished.
+
+  Same for agents and repos. You are custodian of **this** tree. Need work in another?
+  **Send.** Do not enter their working tree and act. A host or operator may have the
+  authority to wake, inspect, even to edit; using that authority to bypass the
+  custodian is a violation of the lead's span of control. Peers send; they do not
+  dabble.
 - **Strict ownership, minimal scope.** Scripts stage only their own files, never `git add -A`;
   a dirty working tree around the log is left untouched. Each repo owns its view of a
   message; mirrored events are self-describing (`mirror:` names the counterpart repo), and a
@@ -191,6 +207,11 @@ commit touches .agent/log/
   → bounded epoch: kill after AGENT_TIMEOUT, agent self-handoffs to resume
   → spawn fresh agent
 ```
+
+### Span of control
+
+Need a change in another repo? **Send** (`agent send --target`). Do not `cd` into
+their tree and edit. Law: Concepts, **Span of control**.
 
 ### Cross-repo messaging
 
